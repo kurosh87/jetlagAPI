@@ -51,10 +51,32 @@ export class JetlagService {
     dayIndex: number
   ): LightExposureWindow {
     const isEastward = timezoneOffset > 0;
-    const brightLightStart = isEastward ? '09:00' : '16:30';
-    const brightLightEnd = isEastward ? '11:00' : '18:30';
-    const avoidLightStart = isEastward ? '17:30' : '05:00';
-    const avoidLightEnd = isEastward ? '19:30' : '07:00';
+    const cbtMin = this.calculateNadir(phase.bedTime, phase.wakeTime);
+    const cbtMinMinutes = timeToMinutes(cbtMin);
+    
+    let brightLightStart: string;
+    let brightLightEnd: string;
+    
+    if (isEastward) {
+      // For eastward travel, light should be 3-5 hours after CBT min
+      const startOffset = 180; // 3 hours after CBT min
+      const duration = 120; // 2 hour duration
+      const startMinutes = (cbtMinMinutes + startOffset) % (24 * 60);
+      brightLightStart = minutesToTime(startMinutes);
+      brightLightEnd = minutesToTime((startMinutes + duration) % (24 * 60));
+    } else {
+      // For westward travel, light should end 2-3 hours before CBT min
+      const endOffset = 120; // End 2 hours before CBT min
+      const duration = 120; // 2 hour duration
+      const endMinutes = ((cbtMinMinutes - endOffset + 24 * 60) % (24 * 60));
+      const startMinutes = ((endMinutes - duration + 24 * 60) % (24 * 60));
+      brightLightStart = minutesToTime(startMinutes);
+      brightLightEnd = minutesToTime(endMinutes);
+    }
+
+    // Calculate avoid light window (typically 12 hours opposite)
+    const avoidStartMinutes = (timeToMinutes(brightLightStart) + 12 * 60) % (24 * 60);
+    const avoidEndMinutes = (timeToMinutes(brightLightEnd) + 12 * 60) % (24 * 60);
 
     return {
       brightLight: {
@@ -62,10 +84,10 @@ export class JetlagService {
         end: brightLightEnd
       },
       avoidLight: {
-        start: avoidLightStart,
-        end: avoidLightEnd
+        start: minutesToTime(avoidStartMinutes),
+        end: minutesToTime(avoidEndMinutes)
       },
-      intensity: isEastward ? LightIntensity.BRIGHT : LightIntensity.BRIGHT,
+      intensity: LightIntensity.BRIGHT,
       type: isEastward ? LightAction.ADVANCE : LightAction.DELAY,
       naturalLight: true,
       priority: LightPriority.CRITICAL,
