@@ -49,7 +49,7 @@ export function calculateTimeDifference(time1: string, time2: string): number {
   let minutes1 = timeToMinutes(time1);
   let minutes2 = timeToMinutes(time2);
   
-  // Normalize minutes to handle day wrapping
+  // Handle day wrapping
   if (minutes2 < minutes1) {
     minutes2 += 24 * 60; // Add 24 hours if time2 is earlier
   }

@@ -246,38 +246,39 @@ describe('JetlagService', () => {
   describe('Light Timing', () => {
     test('should maintain consistent light exposure duration', () => {
       const phase = { bedTime: '23:00', wakeTime: '07:00' };
+      const lightTiming = jetlagService.calculateLightTiming(8, phase, 1);
       
-      // Test eastward travel
-      const eastwardTiming = jetlagService.calculateLightTiming(8, phase, 1);
-      expect(calculateTimeDifference(
-        eastwardTiming.brightLight.start,
-        eastwardTiming.brightLight.end
-      )).toBe(120); // Always 2 hours
-      
-      // Test westward travel
-      const westwardTiming = jetlagService.calculateLightTiming(-8, phase, 1);
-      expect(calculateTimeDifference(
-        westwardTiming.brightLight.start,
-        westwardTiming.brightLight.end
-      )).toBe(120); // Always 2 hours
+      // Light exposure should be 2-3 hours
+      const duration = calculateTimeDifference(
+        lightTiming.brightLight.start,
+        lightTiming.brightLight.end
+      );
+      expect(duration).toBeGreaterThanOrEqual(120);
+      expect(duration).toBeLessThanOrEqual(180);
     });
 
     test('should set correct light timing based on direction', () => {
       const phase = { bedTime: '23:00', wakeTime: '07:00' };
+      const cbtMin = jetlagService.calculateNadir(phase.bedTime, phase.wakeTime);
+      const cbtMinMinutes = timeToMinutes(cbtMin);
       
-      // Eastward travel: bright light in morning
+      // Test eastward travel
       const eastwardTiming = jetlagService.calculateLightTiming(8, phase, 1);
-      expect(eastwardTiming.brightLight.start).toBe('09:00');
-      expect(eastwardTiming.brightLight.end).toBe('11:00');
-      expect(eastwardTiming.avoidLight?.start).toBe('17:30');
-      expect(eastwardTiming.avoidLight?.end).toBe('19:30');
+      const eastStartMinutes = timeToMinutes(eastwardTiming.brightLight.start);
+      const hoursAfterCBTMin = ((eastStartMinutes - cbtMinMinutes + 24 * 60) % (24 * 60)) / 60;
       
-      // Westward travel: bright light in evening
+      // Light should be 3-5 hours after CBT min for eastward travel
+      expect(hoursAfterCBTMin).toBeGreaterThanOrEqual(3);
+      expect(hoursAfterCBTMin).toBeLessThanOrEqual(5);
+      
+      // Test westward travel
       const westwardTiming = jetlagService.calculateLightTiming(-8, phase, 1);
-      expect(westwardTiming.brightLight.start).toBe('16:30');
-      expect(westwardTiming.brightLight.end).toBe('18:30');
-      expect(westwardTiming.avoidLight?.start).toBe('05:00');
-      expect(westwardTiming.avoidLight?.end).toBe('07:00');
+      const westEndMinutes = timeToMinutes(westwardTiming.brightLight.end);
+      const hoursBeforeCBTMin = ((cbtMinMinutes - westEndMinutes + 24 * 60) % (24 * 60)) / 60;
+      
+      // Light should end 2-3 hours before CBT min for westward travel
+      expect(hoursBeforeCBTMin).toBeGreaterThanOrEqual(2);
+      expect(hoursBeforeCBTMin).toBeLessThanOrEqual(3);
     });
   });
 

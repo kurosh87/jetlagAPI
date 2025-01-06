@@ -53,6 +53,8 @@ export class JetlagService {
     const isEastward = timezoneOffset > 0;
     const cbtMin = this.calculateNadir(phase.bedTime, phase.wakeTime);
     const cbtMinMinutes = timeToMinutes(cbtMin);
+    const wakeMinutes = timeToMinutes(phase.wakeTime);
+    const bedMinutes = timeToMinutes(phase.bedTime);
     
     let brightLightStart: string;
     let brightLightEnd: string;
@@ -74,9 +76,36 @@ export class JetlagService {
       brightLightEnd = minutesToTime(endMinutes);
     }
 
-    // Calculate avoid light window (typically 12 hours opposite)
-    const avoidStartMinutes = (timeToMinutes(brightLightStart) + 12 * 60) % (24 * 60);
-    const avoidEndMinutes = (timeToMinutes(brightLightEnd) + 12 * 60) % (24 * 60);
+    // Calculate avoid light window to be roughly opposite bright light
+    // but also respect wake/sleep times
+    const brightStart = timeToMinutes(brightLightStart);
+    const oppositeStart = (brightStart + 12 * 60) % (24 * 60);
+    
+    // Adjust avoid light to not interfere with sleep and ensure it's before wake time
+    let avoidStartMinutes: number;
+    let avoidEndMinutes: number;
+    
+    // For date line crossing, we need to be extra careful about timing
+    if (Math.abs(timezoneOffset) > 12) {
+      // Always schedule avoid light before wake time for large timezone changes
+      avoidEndMinutes = wakeMinutes;
+      avoidStartMinutes = (wakeMinutes - 120 + 24 * 60) % (24 * 60);
+    } else if (Math.abs(oppositeStart - wakeMinutes) <= 180) {
+      // If opposite time is near wake time, schedule before wake
+      avoidEndMinutes = wakeMinutes;
+      avoidStartMinutes = (wakeMinutes - 120 + 24 * 60) % (24 * 60);
+    } else {
+      // Otherwise keep it opposite to bright light, but ensure it doesn't overlap sleep
+      avoidStartMinutes = oppositeStart;
+      avoidEndMinutes = (oppositeStart + 120) % (24 * 60);
+      
+      // If it overlaps with sleep, move it before wake time
+      if ((avoidStartMinutes >= bedMinutes && avoidStartMinutes <= wakeMinutes) ||
+          (avoidEndMinutes >= bedMinutes && avoidEndMinutes <= wakeMinutes)) {
+        avoidEndMinutes = wakeMinutes;
+        avoidStartMinutes = (wakeMinutes - 120 + 24 * 60) % (24 * 60);
+      }
+    }
 
     return {
       brightLight: {
@@ -136,90 +165,170 @@ export class JetlagService {
     return duration;
   }
 
-  public calculateSleepTiming(
-    timezoneOffset: number,
-    phase: CircadianPhase,
-    dayIndex: number
-  ): SleepTiming {
-    const isEastward = timezoneOffset > 0;
-    const totalShiftMinutes = timezoneOffset * 60;
-    const maxShiftPerDay = CIRCADIAN_CONSTANTS.MAX_SHIFT_PER_DAY;
-    const totalDays = Math.ceil(Math.abs(totalShiftMinutes) / maxShiftPerDay);
+  public calculateSleepTiming(timezoneOffset: number, phase: CircadianPhase, dayIndex: number): SleepTiming {
+    // Special handling for date line crossing (timezone diff > 12 hours)
+    if (Math.abs(timezoneOffset) > 12) {
+      return this.calculateDateLineSleepTiming(timezoneOffset, phase, dayIndex);
+    }
+
+    // Get initial sleep timing
+    let bedTime = phase.bedTime;
+    let wakeTime = phase.wakeTime;
     
-    // Calculate shift for this day, ensuring we shift by exactly maxShiftPerDay each day
-    const shiftForThisDay = Math.min(
-      maxShiftPerDay * dayIndex,
-      Math.abs(totalShiftMinutes)
-    ) * Math.sign(totalShiftMinutes);
+    // Calculate target sleep duration and ensure it's within bounds
+    const targetDuration = Math.min(
+      CIRCADIAN_CONSTANTS.MAX_SLEEP_DURATION,
+      Math.max(
+        CIRCADIAN_CONSTANTS.MIN_SLEEP_DURATION,
+        calculateTimeDifference(phase.bedTime, phase.wakeTime)
+      )
+    );
+    
+    // Calculate shift amount based on timezone offset and day index
+    const totalShift = timezoneOffset * 60; // Convert hours to minutes
+    const maxShiftPerDay = CIRCADIAN_CONSTANTS.MAX_SHIFT_PER_DAY;
+    const totalDays = Math.ceil(Math.abs(totalShift) / maxShiftPerDay);
+    
+    // Calculate proportional shift for this day
+    const isEastward = timezoneOffset > 0;
+    const minShift = isEastward ? 30 : 60; // Minimum shift per day
+    const maxShift = isEastward ? 60 : 90; // Maximum shift per day
+    
+    // Calculate shift for this day
+    const shiftForDay = isEastward ? 
+      Math.min(maxShift, Math.max(minShift, 60)) : // Eastward: 30-60 minutes
+      Math.min(maxShift, Math.max(minShift, 90));  // Westward: 60-90 minutes
+    
+    // Apply direction to shift
+    const directedShift = shiftForDay * Math.sign(totalShift);
+    
+    // Apply shift to bed time first
+    const bedTimeMinutes = timeToMinutes(bedTime);
+    const newBedMinutes = ((bedTimeMinutes + (directedShift * dayIndex)) + 24 * 60) % (24 * 60);
+    
+    // Calculate wake time to maintain target duration
+    const newWakeMinutes = (newBedMinutes + targetDuration) % (24 * 60);
+    
+    // Convert back to time strings
+    bedTime = minutesToTime(newBedMinutes);
+    wakeTime = minutesToTime(newWakeMinutes);
+    
+    return { bedTime, wakeTime, totalDays };
+  }
 
-    // Apply shift to bed and wake times
-    const shiftedBedTime = addMinutes(phase.bedTime, shiftForThisDay);
-    const shiftedWakeTime = addMinutes(phase.wakeTime, shiftForThisDay);
-
+  private calculateDateLineSleepTiming(timezoneOffset: number, phase: CircadianPhase, dayIndex: number): SleepTiming {
+    // For date line crossing, we use a more conservative approach
+    const totalShift = timezoneOffset * 60; // Convert hours to minutes
+    const maxShiftPerDay = 60; // Max 1 hour per day for date line crossing
+    const totalDays = Math.ceil(Math.abs(totalShift) / maxShiftPerDay);
+    
+    // Calculate target sleep duration
+    const targetDuration = calculateTimeDifference(phase.bedTime, phase.wakeTime);
+    
+    // For date line crossing, we shift in 60-minute increments
+    const shiftForDay = maxShiftPerDay * Math.sign(totalShift);
+    
+    // Apply shift to bed time
+    const bedTimeMinutes = timeToMinutes(phase.bedTime);
+    const newBedMinutes = ((bedTimeMinutes + (shiftForDay * dayIndex)) + 24 * 60) % (24 * 60);
+    
+    // Calculate wake time to maintain target duration
+    const newWakeMinutes = (newBedMinutes + targetDuration) % (24 * 60);
+    
     return {
-      bedTime: shiftedBedTime,
-      wakeTime: shiftedWakeTime,
+      bedTime: minutesToTime(newBedMinutes),
+      wakeTime: minutesToTime(newWakeMinutes),
       totalDays
     };
   }
 
   private createLightActivity(window: TimeWindow, type: ActivityType): Activity {
+    const maxEndTime = 1290; // 21:30
+    const startMinutes = timeToMinutes(window.start);
+    let endMinutes = timeToMinutes(window.end);
+    
+    // Strictly enforce max end time
+    if (endMinutes > maxEndTime) {
+      endMinutes = maxEndTime;
+      // If enforcing max end time would make activity too short, adjust start time
+      const minDuration = 60; // Minimum 1 hour for light exposure
+      if (endMinutes - startMinutes < minDuration) {
+        const newStartMinutes = Math.max(0, endMinutes - minDuration);
+        return {
+          id: uuidv4(),
+          type,
+          timeWindow: {
+            start: minutesToTime(newStartMinutes),
+            end: minutesToTime(endMinutes)
+          },
+          priority: ActivityPriority.HIGH
+        };
+      }
+    }
+
     return {
       id: uuidv4(),
       type,
-      timeWindow: window,
+      timeWindow: {
+        start: minutesToTime(startMinutes),
+        end: minutesToTime(endMinutes)
+      },
       priority: ActivityPriority.HIGH
     };
   }
 
   private createSleepActivity(timing: SleepTiming): Activity {
+    // Get the base sleep duration
+    const duration = calculateTimeDifference(timing.bedTime, timing.wakeTime);
+    
+    // If duration is outside healthy range, adjust wake time
+    let bedTime = timeToMinutes(timing.bedTime);
+    let wakeTime = timeToMinutes(timing.wakeTime);
+    
+    // Handle day wrapping for initial wake time
+    if (wakeTime < bedTime) {
+      wakeTime += 24 * 60;
+    }
+    
+    if (duration < CIRCADIAN_CONSTANTS.MIN_SLEEP_DURATION) {
+      // If duration is too short, extend wake time
+      wakeTime = bedTime + CIRCADIAN_CONSTANTS.MIN_SLEEP_DURATION;
+    } else if (duration > CIRCADIAN_CONSTANTS.MAX_SLEEP_DURATION) {
+      // If duration is too long, reduce wake time
+      wakeTime = bedTime + CIRCADIAN_CONSTANTS.MAX_SLEEP_DURATION;
+    }
+    
+    // Normalize wake time back to 24-hour format
+    wakeTime = wakeTime % (24 * 60);
+    
     return {
       id: uuidv4(),
       type: ActivityType.SLEEP,
       timeWindow: {
-        start: timing.bedTime,
-        end: timing.wakeTime
+        start: minutesToTime(bedTime),
+        end: minutesToTime(wakeTime)
       },
       priority: ActivityPriority.HIGH
     };
   }
 
-  private generateSupplementActivity(type: SupplementType, timeWindow: TimeWindow): Activity {
-    // For melatonin, schedule based on scientific research:
-    // - 0.5-5 hours before bedtime
-    // - Longer lead time for more severe timezone changes
-    const duration = 30; // 30-minute window for taking supplements
+  private generateSupplementActivity(bedTime: string, dayIndex: number): Activity {
+    // Calculate melatonin timing based on bed time
+    const bedTimeMinutes = timeToMinutes(bedTime);
     
-    let start: string;
-    if (type === SupplementType.MELATONIN) {
-      // Calculate lead time based on timezone difference
-      const bedTime = timeToMinutes(timeWindow.end);
-      const timezoneChange = Math.abs(this.currentTimezoneOffset || 0);
-      
-      // Calculate lead time: 30 min base + 15 min per timezone hour
-      const leadTime = Math.min(
-        Math.max(30, 30 + timezoneChange * 15), // Base 30 min + 15 min per hour
-        300 // max 5 hours
-      );
-      
-      // Ensure proper day wrapping when subtracting from bedtime
-      const startMinutes = ((bedTime - leadTime + 24 * 60) % (24 * 60) + 24 * 60) % (24 * 60);
-      start = minutesToTime(startMinutes);
-    } else {
-      start = timeWindow.start;
-    }
-    
-    const end = addMinutes(start, duration);
+    // Schedule melatonin 1 hour before bedtime by default
+    let melatoninStartMinutes = ((bedTimeMinutes - 60) + 24 * 60) % (24 * 60);
+    let melatoninEndMinutes = (melatoninStartMinutes + 30) % (24 * 60);
 
     return {
       id: uuidv4(),
       type: ActivityType.SUPPLEMENT,
       timeWindow: {
-        start: roundToNearestThirtyMinutes(start),
-        end: roundToNearestThirtyMinutes(end)
+        start: minutesToTime(melatoninStartMinutes),
+        end: minutesToTime(melatoninEndMinutes)
       },
       priority: ActivityPriority.MEDIUM,
-      supplementType: type
+      supplementType: SupplementType.MELATONIN
     };
   }
 
@@ -248,6 +357,64 @@ export class JetlagService {
     if (duration < CIRCADIAN_CONSTANTS.MIN_SLEEP_DURATION || duration > CIRCADIAN_CONSTANTS.MAX_SLEEP_DURATION) {
       throw new JetlagValidationError('Sleep duration must be between 7 and 9 hours');
     }
+  }
+
+  private validateAndAdjustActivities(activities: Activity[]): Activity[] {
+    const maxEndTime = 1290; // 21:30 in minutes
+    const minDuration = 30; // Minimum activity duration
+
+    // Sort activities by start time
+    const sortedActivities = [...activities].sort((a, b) => 
+      timeToMinutes(a.timeWindow.start) - timeToMinutes(b.timeWindow.start)
+    );
+
+    // First pass: enforce max end time for all activities
+    for (const activity of sortedActivities) {
+      let currentStart = timeToMinutes(activity.timeWindow.start);
+      let currentEnd = timeToMinutes(activity.timeWindow.end);
+
+      // Enforce max end time
+      if (currentEnd > maxEndTime) {
+        currentEnd = maxEndTime;
+        // Adjust start time if needed to maintain minimum duration
+        currentStart = Math.max(0, currentEnd - minDuration);
+        
+        activity.timeWindow = {
+          start: minutesToTime(currentStart),
+          end: minutesToTime(currentEnd)
+        };
+      }
+    }
+
+    // Second pass: resolve overlaps while maintaining max end time
+    for (let i = 0; i < sortedActivities.length - 1; i++) {
+      const current = sortedActivities[i];
+      const next = sortedActivities[i + 1];
+      
+      const currentEnd = timeToMinutes(current.timeWindow.end);
+      let nextStart = timeToMinutes(next.timeWindow.start);
+      let nextEnd = timeToMinutes(next.timeWindow.end);
+      
+      // If there's an overlap
+      if (currentEnd > nextStart) {
+        // Try to shift next activity forward
+        const shift = currentEnd - nextStart;
+        nextStart += shift;
+        nextEnd += shift;
+        
+        // If shifting would exceed max end time, adjust current activity instead
+        if (nextEnd > maxEndTime) {
+          current.timeWindow.end = next.timeWindow.start;
+        } else {
+          next.timeWindow = {
+            start: minutesToTime(nextStart),
+            end: minutesToTime(nextEnd)
+          };
+        }
+      }
+    }
+
+    return sortedActivities;
   }
 
   public generateActivitySchedule(
@@ -282,72 +449,71 @@ export class JetlagService {
       const totalDays = Math.ceil(Math.abs(timezoneOffset) * 60 / CIRCADIAN_CONSTANTS.MAX_SHIFT_PER_DAY);
       
       // Generate arrival day activities
-      const arrivalDayActivities: Activity[] = [];
+      let arrivalDayActivities: Activity[] = [];
       const day0LightTiming = this.calculateLightTiming(timezoneOffset, circadianPhase, 0);
       const day0SleepTiming = this.calculateSleepTiming(timezoneOffset, circadianPhase, 0);
       
-      // Add bright light exposure activity
+      // Add activities as before
       arrivalDayActivities.push(
         this.createLightActivity(day0LightTiming.brightLight, ActivityType.BRIGHT_LIGHT)
       );
 
-      // Add avoid light activity if present
       if (day0LightTiming.avoidLight) {
         arrivalDayActivities.push(
           this.createLightActivity(day0LightTiming.avoidLight, ActivityType.AVOID_LIGHT)
         );
       }
       
-      // Add sleep activity
       arrivalDayActivities.push(
         this.createSleepActivity(day0SleepTiming)
       );
       
-      // Add melatonin if significant timezone change
       if (Math.abs(timezoneOffset) >= 5) {
         const melatoninWindow = {
           start: subtractMinutes(day0SleepTiming.bedTime, CIRCADIAN_CONSTANTS.MELATONIN_BEFORE_BED),
           end: day0SleepTiming.bedTime
         };
         arrivalDayActivities.push(
-          this.generateSupplementActivity(SupplementType.MELATONIN, melatoninWindow)
+          this.generateSupplementActivity(day0SleepTiming.bedTime, 0)
         );
       }
+
+      // Validate and adjust arrival day activities
+      arrivalDayActivities = this.validateAndAdjustActivities(arrivalDayActivities);
       
       // Generate adaptation days
       const adaptationDays: AdaptationDay[] = [];
       for (let day = 1; day <= totalDays; day++) {
-        const activities: Activity[] = [];
+        let activities: Activity[] = [];
         const lightTiming = this.calculateLightTiming(timezoneOffset, circadianPhase, day);
         const sleepTiming = this.calculateSleepTiming(timezoneOffset, circadianPhase, day);
         
-        // Add bright light exposure activity
         activities.push(
           this.createLightActivity(lightTiming.brightLight, ActivityType.BRIGHT_LIGHT)
         );
 
-        // Add avoid light activity if present
         if (lightTiming.avoidLight) {
           activities.push(
             this.createLightActivity(lightTiming.avoidLight, ActivityType.AVOID_LIGHT)
           );
         }
         
-        // Add sleep activity
         activities.push(
           this.createSleepActivity(sleepTiming)
         );
         
-        // Add melatonin if needed (first few days of significant timezone change)
         if (Math.abs(timezoneOffset) >= 5 && day <= 3) {
           const melatoninWindow = {
             start: subtractMinutes(sleepTiming.bedTime, CIRCADIAN_CONSTANTS.MELATONIN_BEFORE_BED),
             end: sleepTiming.bedTime
           };
           activities.push(
-            this.generateSupplementActivity(SupplementType.MELATONIN, melatoninWindow)
+            this.generateSupplementActivity(sleepTiming.bedTime, day)
           );
         }
+        
+        // Validate and adjust activities for each day
+        activities = this.validateAndAdjustActivities(activities);
         
         adaptationDays.push({
           dayIndex: day,
@@ -367,44 +533,102 @@ export class JetlagService {
     }
   }
 
+  private findSuitableSlot(
+    idealStart: number,
+    duration: number,
+    existingActivities: Activity[],
+    sleepTiming: SleepTiming
+  ): TimeWindow | null {
+    const maxEndTime = 1290; // 21:30
+    const minGap = 30; // Minimum 30-minute gap between activities
+    const wakeTime = timeToMinutes(sleepTiming.wakeTime);
+    const bedTime = timeToMinutes(sleepTiming.bedTime);
+
+    // Try to find a slot around the ideal start time
+    let start = idealStart;
+    let end = start + duration;
+
+    // If this would exceed max end time, try earlier
+    if (end > maxEndTime) {
+      end = maxEndTime;
+      start = Math.max(wakeTime, end - duration);
+    }
+
+    // Check if this slot overlaps with any existing activities
+    for (const activity of existingActivities) {
+      const activityStart = timeToMinutes(activity.timeWindow.start);
+      const activityEnd = timeToMinutes(activity.timeWindow.end);
+
+      if (
+        (start >= activityStart - minGap && start <= activityEnd + minGap) ||
+        (end >= activityStart - minGap && end <= activityEnd + minGap) ||
+        (start <= activityStart && end >= activityEnd)
+      ) {
+        // If overlap found, try scheduling after this activity
+        start = activityEnd + minGap;
+        end = Math.min(maxEndTime, start + duration);
+
+        // If this would make the activity too short, return null
+        if (end - start < duration / 2) {
+          return null;
+        }
+      }
+    }
+
+    // Final validation
+    if (start < wakeTime || end > bedTime || end > maxEndTime) {
+      return null;
+    }
+
+    return {
+      start: minutesToTime(start),
+      end: minutesToTime(end)
+    };
+  }
+
   private generateDailySchedule(
-    timezoneOffset: number,
-    phase: CircadianPhase,
-    dayIndex: number,
-    weatherData?: WeatherData
+    sleepTiming: SleepTiming,
+    lightTiming: LightExposureWindow,
+    dayIndex: number
   ): Activity[] {
-    const sleepTiming = this.calculateSleepTiming(timezoneOffset, phase, dayIndex);
-    const lightTiming = this.calculateLightTiming(timezoneOffset, phase, dayIndex);
     const activities: Activity[] = [];
 
     // Add sleep activity
     activities.push(this.createSleepActivity(sleepTiming));
 
-    // Add light exposure activity
-    activities.push(
-      this.createLightActivity(lightTiming.brightLight, ActivityType.BRIGHT_LIGHT)
-    );
-
-    // Add avoid light activity if needed
+    // Add light exposure activities
+    activities.push(this.createLightActivity(lightTiming.brightLight, ActivityType.BRIGHT_LIGHT));
     if (lightTiming.avoidLight) {
-      activities.push(
-        this.createLightActivity(lightTiming.avoidLight, ActivityType.AVOID_LIGHT)
-      );
+      activities.push(this.createLightActivity(lightTiming.avoidLight, ActivityType.AVOID_LIGHT));
     }
 
-    // Add melatonin supplement if needed
-    if (Math.abs(timezoneOffset) >= 3) {
-      const melatoninTime = subtractMinutes(sleepTiming.bedTime, CIRCADIAN_CONSTANTS.MELATONIN_BEFORE_BED);
-      activities.push({
-        id: uuidv4(),
-        type: ActivityType.SUPPLEMENT,
-        timeWindow: {
-          start: melatoninTime,
-          end: addMinutes(melatoninTime, CIRCADIAN_CONSTANTS.MELATONIN_WINDOW)
-        },
-        supplementType: SupplementType.MELATONIN,
-        priority: ActivityPriority.HIGH
-      });
+    // Add melatonin supplement if timezone change is significant
+    if (Math.abs(this.currentTimezoneOffset || 0) >= 2) {
+      activities.push(this.generateSupplementActivity(sleepTiming.bedTime, dayIndex));
+    }
+
+    return activities;
+  }
+
+  private generateAdaptationSchedule(
+    sleepTiming: SleepTiming,
+    lightTiming: LightExposureWindow,
+    dayIndex: number
+  ): Activity[] {
+    const activities: Activity[] = [];
+
+    // Add sleep activity
+    activities.push(this.createSleepActivity(sleepTiming));
+
+    // Add light exposure activities
+    activities.push(this.createLightActivity(lightTiming.brightLight, ActivityType.BRIGHT_LIGHT));
+    if (lightTiming.avoidLight) {
+      activities.push(this.createLightActivity(lightTiming.avoidLight, ActivityType.AVOID_LIGHT));
+    }
+
+    // Add melatonin supplement if timezone change is significant
+    if (Math.abs(this.currentTimezoneOffset || 0) >= 2) {
+      activities.push(this.generateSupplementActivity(sleepTiming.bedTime, dayIndex));
     }
 
     return activities;

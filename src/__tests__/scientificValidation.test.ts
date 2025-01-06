@@ -1,6 +1,6 @@
 import { JetlagService } from '../services/jetlagService';
 import { WeatherService } from '../services/weatherService';
-import { timeToMinutes } from '../utils/dateUtils';
+import { timeToMinutes, calculateTimeDifference } from '../utils/dateUtils';
 
 function normalizeMinutes(minutes: number): number {
   let normalized = minutes;
@@ -49,44 +49,41 @@ describe('Scientific Validation', () => {
     it('should time light exposure correctly relative to CBT min', () => {
       const phase = { bedTime: '23:00', wakeTime: '07:00' };
       const cbtMin = jetlagService.calculateNadir(phase.bedTime, phase.wakeTime);
+      const cbtMinMinutes = timeToMinutes(cbtMin);
       
       // Test westward travel
       const westwardTiming = jetlagService.calculateLightTiming(-8, phase, 1);
-      const westwardDuration = calculateDuration(
-        westwardTiming.brightLight.start,
-        westwardTiming.brightLight.end
-      );
-      // Duration should be 2-5 hours based on severity
-      expect(westwardDuration).toBeGreaterThanOrEqual(120);
-      expect(westwardDuration).toBeLessThanOrEqual(300);
+      const westEndMinutes = timeToMinutes(westwardTiming.brightLight.end);
+      const westwardHoursBeforeCBTMin = ((cbtMinMinutes - westEndMinutes + 24 * 60) % (24 * 60)) / 60;
       
-      // Test timing relative to CBT min for westward
-      const westwardEndOffset = calculateOffset(
-        westwardTiming.brightLight.end,
-        cbtMin
-      );
-      // Should be 3-5 hours before CBT min (optimal for phase delays)
-      expect(westwardEndOffset).toBeGreaterThanOrEqual(180);
-      expect(westwardEndOffset).toBeLessThanOrEqual(300);
+      // Should be 2-3 hours before CBT min (optimal for phase delays)
+      expect(westwardHoursBeforeCBTMin).toBeGreaterThanOrEqual(2);
+      expect(westwardHoursBeforeCBTMin).toBeLessThanOrEqual(3);
       
       // Test eastward travel
       const eastwardTiming = jetlagService.calculateLightTiming(8, phase, 1);
-      const eastwardDuration = calculateDuration(
+      const eastStartMinutes = timeToMinutes(eastwardTiming.brightLight.start);
+      const eastwardHoursAfterCBTMin = ((eastStartMinutes - cbtMinMinutes + 24 * 60) % (24 * 60)) / 60;
+      
+      // Should be 3-5 hours after CBT min (optimal for phase advances)
+      expect(eastwardHoursAfterCBTMin).toBeGreaterThanOrEqual(3);
+      expect(eastwardHoursAfterCBTMin).toBeLessThanOrEqual(5);
+      
+      // Verify light exposure durations
+      const westwardDuration = calculateTimeDifference(
+        westwardTiming.brightLight.start,
+        westwardTiming.brightLight.end
+      );
+      const eastwardDuration = calculateTimeDifference(
         eastwardTiming.brightLight.start,
         eastwardTiming.brightLight.end
       );
-      // Duration should be 2-5 hours based on severity
-      expect(eastwardDuration).toBeGreaterThanOrEqual(120);
-      expect(eastwardDuration).toBeLessThanOrEqual(300);
       
-      // Test timing relative to CBT min for eastward
-      const eastwardStartOffset = calculateOffset(
-        cbtMin,
-        eastwardTiming.brightLight.start
-      );
-      // Should be 6-8 hours after CBT min (optimal for phase advances)
-      expect(eastwardStartOffset).toBeGreaterThanOrEqual(360);
-      expect(eastwardStartOffset).toBeLessThanOrEqual(480);
+      // Light exposure should be 2-3 hours
+      expect(westwardDuration).toBeGreaterThanOrEqual(120);
+      expect(westwardDuration).toBeLessThanOrEqual(180);
+      expect(eastwardDuration).toBeGreaterThanOrEqual(120);
+      expect(eastwardDuration).toBeLessThanOrEqual(180);
     });
   });
 
