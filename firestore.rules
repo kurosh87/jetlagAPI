@@ -1,0 +1,23 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // API usage tracking
+    match /api-usage/{document=**} {
+      allow read: if request.auth != null;
+      allow write: if false; // Only written by server
+    }
+    
+    // Flight data cache
+    match /flight-cache/{document=**} {
+      allow read: if request.auth != null;
+      allow write: if false; // Only written by server
+    }
+    
+    // Rate limiting data
+    match /rate-limits/{document=**} {
+      allow read: if request.auth != null;
+      allow write: if false; // Only written by server
+    }
+  }
+} 
