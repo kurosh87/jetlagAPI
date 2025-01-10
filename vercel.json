@@ -1,0 +1,34 @@
+{
+  "version": 2,
+  "builds": [
+    {
+      "src": "api/**/*.ts",
+      "use": "@vercel/node"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/api/calculate",
+      "dest": "/api/calculate.ts"
+    },
+    {
+      "src": "/api/test",
+      "dest": "/api/test.ts"
+    },
+    {
+      "src": "/api/chronotype",
+      "dest": "/api/chronotype.ts"
+    },
+    {
+      "src": "/api/flights/search",
+      "dest": "/api/flights/search.ts"
+    },
+    {
+      "src": "/api/airports/search",
+      "dest": "/api/airports/search.ts"
+    }
+  ],
+  "env": {
+    "NODE_ENV": "production"
+  }
+} 

@@ -20,7 +20,8 @@ export enum ActivityType {
   SLEEP = 'sleep',
   BRIGHT_LIGHT = 'bright_light',
   AVOID_LIGHT = 'avoid_light',
-  SUPPLEMENT = 'supplement'
+  SUPPLEMENT = 'supplement',
+  NAP = 'nap'
 }
 
 export enum ActivityPriority {

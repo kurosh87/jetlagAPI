@@ -4,29 +4,41 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
-# Build outputs
-dist/
-build/
-*.tsbuildinfo
-
 # Environment variables
 .env
 .env.local
 .env.*.local
 
-# IDE
-.vscode/
+# Build output
+dist/
+build/
+.vercel/
+
+# IDE and editor files
 .idea/
+.vscode/
 *.swp
 *.swo
-
-# OS
 .DS_Store
-Thumbs.db
+
+# Testing
+coverage/
+
+# API keys and secrets
+*.pem
+*.key
+*-firebase-adminsdk-*.json
+GoogleService-Info*.plist
 
 # Logs
 logs/
 *.log
 
-# Coverage
-coverage/
+# Runtime data
+pids/
+*.pid
+*.seed
+*.pid.lock
+
+# Vercel
+.vercel/

@@ -22,6 +22,7 @@ import { WeatherData } from '../types/weather';
 import { v4 as uuidv4 } from 'uuid';
 import { WeatherService } from './weatherService';
 import { calculateOptimalLightTiming } from '../utils/circadianCalculations';
+import { UserProfile, ChronotypeCategory, SleepQuality } from '../types/chronotype';
 
 interface DailySchedule {
   day: number;
@@ -43,6 +44,315 @@ export class JetlagService {
 
   constructor(weatherService: WeatherService) {
     this.weatherService = weatherService;
+  }
+
+  public async calculateSchedule({
+    departureTime,
+    arrivalTime,
+    timeZoneDifference,
+    userProfile
+  }: {
+    departureTime: string;
+    arrivalTime: string;
+    timeZoneDifference: number;
+    userProfile?: UserProfile;
+  }) {
+    // Convert string times to Date objects
+    const departure = new Date(departureTime);
+    const arrival = new Date(arrivalTime);
+    
+    // Create default phase if no profile provided
+    const defaultPhase: CircadianPhase = {
+      bedTime: '23:00',
+      wakeTime: '07:00'
+    };
+
+    // Use user's typical sleep times if available
+    const circadianPhase = userProfile ? {
+      bedTime: userProfile.sleepProfile.typicalBedTime,
+      wakeTime: userProfile.sleepProfile.typicalWakeTime
+    } : defaultPhase;
+
+    // Calculate base schedule
+    let daysNeeded = Math.ceil(Math.abs(timeZoneDifference) * 60 / CIRCADIAN_CONSTANTS.MAX_SHIFT_PER_DAY);
+    
+    // Adjust days needed based on age and sleep quality
+    if (userProfile) {
+      if (userProfile.age > 60) {
+        daysNeeded += 1; // Older travelers need more time
+      }
+      if (userProfile.sleepProfile.sleepQuality === SleepQuality.POOR) {
+        daysNeeded += 1; // Poor sleepers need more time
+      }
+    }
+
+    // Generate arrival day activities
+    let arrivalDayActivities: Activity[] = [];
+    const day0LightTiming = this.calculateLightTiming(timeZoneDifference, circadianPhase, 0);
+    const day0SleepTiming = this.calculateSleepTiming(timeZoneDifference, circadianPhase, 0);
+
+    // Adjust light timing based on chronotype
+    if (userProfile?.chronotype) {
+      day0LightTiming.brightLight = this.adjustLightTimingForChronotype(
+        day0LightTiming.brightLight,
+        userProfile.chronotype
+      );
+    }
+
+    // Add activities
+    arrivalDayActivities.push(
+      this.createLightActivity(day0LightTiming.brightLight, ActivityType.BRIGHT_LIGHT)
+    );
+
+    if (day0LightTiming.avoidLight) {
+      arrivalDayActivities.push(
+        this.createLightActivity(day0LightTiming.avoidLight, ActivityType.AVOID_LIGHT)
+      );
+    }
+
+    // Add sleep activity with chronotype adjustments
+    const sleepActivity = this.createSleepActivity(day0SleepTiming);
+    if (userProfile?.chronotype) {
+      sleepActivity.timeWindow = this.adjustSleepWindowForChronotype(
+        sleepActivity.timeWindow,
+        userProfile.chronotype
+      );
+    }
+    arrivalDayActivities.push(sleepActivity);
+
+    // Add naps if user can nap
+    if (userProfile?.sleepProfile.canNap) {
+      const napWindows = this.calculateNapWindow(day0SleepTiming);
+      // For poor sleepers, add all nap windows
+      if (userProfile.sleepProfile.sleepQuality === SleepQuality.POOR) {
+        napWindows.forEach(napWindow => {
+          arrivalDayActivities.push({
+            id: uuidv4(),
+            type: ActivityType.NAP,
+            timeWindow: napWindow,
+            priority: ActivityPriority.MEDIUM
+          });
+        });
+      } else {
+        // For good sleepers, just add one mid-day nap
+        const midDayNap = napWindows[1]; // Use the middle nap window
+        arrivalDayActivities.push({
+          id: uuidv4(),
+          type: ActivityType.NAP,
+          timeWindow: midDayNap,
+          priority: ActivityPriority.MEDIUM
+        });
+      }
+    }
+
+    // Add melatonin for significant timezone changes
+    if (Math.abs(timeZoneDifference) >= 5) {
+      arrivalDayActivities.push(
+        this.generateSupplementActivity(day0SleepTiming.bedTime, 0)
+      );
+    }
+
+    // Validate and adjust activities
+    arrivalDayActivities = this.validateAndAdjustActivities(arrivalDayActivities);
+
+    // Generate adaptation days
+    const adaptationDays: AdaptationDay[] = [];
+    for (let day = 1; day <= daysNeeded; day++) {
+      let activities: Activity[] = [];
+      const lightTiming = this.calculateLightTiming(timeZoneDifference, circadianPhase, day);
+      const sleepTiming = this.calculateSleepTiming(timeZoneDifference, circadianPhase, day);
+
+      // Apply chronotype adjustments
+      if (userProfile?.chronotype) {
+        lightTiming.brightLight = this.adjustLightTimingForChronotype(
+          lightTiming.brightLight,
+          userProfile.chronotype
+        );
+      }
+
+      activities.push(
+        this.createLightActivity(lightTiming.brightLight, ActivityType.BRIGHT_LIGHT)
+      );
+
+      if (lightTiming.avoidLight) {
+        activities.push(
+          this.createLightActivity(lightTiming.avoidLight, ActivityType.AVOID_LIGHT)
+        );
+      }
+
+      // Add sleep activity with chronotype adjustments
+      const sleepActivity = this.createSleepActivity(sleepTiming);
+      if (userProfile?.chronotype) {
+        sleepActivity.timeWindow = this.adjustSleepWindowForChronotype(
+          sleepActivity.timeWindow,
+          userProfile.chronotype
+        );
+      }
+      activities.push(sleepActivity);
+
+      // Add naps if user can nap
+      if (userProfile?.sleepProfile.canNap) {
+        const napWindows = this.calculateNapWindow(sleepTiming);
+        // For poor sleepers, add all nap windows
+        if (userProfile.sleepProfile.sleepQuality === SleepQuality.POOR) {
+          napWindows.forEach(napWindow => {
+            activities.push({
+              id: uuidv4(),
+              type: ActivityType.NAP,
+              timeWindow: napWindow,
+              priority: ActivityPriority.MEDIUM
+            });
+          });
+        } else {
+          // For good sleepers, just add one mid-day nap
+          const midDayNap = napWindows[1]; // Use the middle nap window
+          activities.push({
+            id: uuidv4(),
+            type: ActivityType.NAP,
+            timeWindow: midDayNap,
+            priority: ActivityPriority.MEDIUM
+          });
+        }
+      }
+
+      // Add melatonin for first few days of significant timezone changes
+      if (Math.abs(timeZoneDifference) >= 5 && day <= 3) {
+        activities.push(
+          this.generateSupplementActivity(sleepTiming.bedTime, day)
+        );
+      }
+
+      // Validate and adjust activities
+      activities = this.validateAndAdjustActivities(activities);
+
+      adaptationDays.push({
+        dayIndex: day,
+        activities
+      });
+    }
+
+    return {
+      postArrival: {
+        days: adaptationDays,
+        expectedRecoveryDays: daysNeeded
+      }
+    };
+  }
+
+  private adjustLightTimingForChronotype(
+    window: TimeWindow,
+    chronotype: ChronotypeCategory
+  ): TimeWindow {
+    const startMinutes = timeToMinutes(window.start);
+    const endMinutes = timeToMinutes(window.end);
+    let adjustment = 0;
+
+    switch (chronotype) {
+      case ChronotypeCategory.EARLY_MORNING:
+        adjustment = -60; // 1 hour earlier
+        break;
+      case ChronotypeCategory.MODERATE_MORNING:
+        adjustment = -30; // 30 minutes earlier
+        break;
+      case ChronotypeCategory.MODERATE_EVENING:
+        adjustment = 30; // 30 minutes later
+        break;
+      case ChronotypeCategory.LATE_EVENING:
+        adjustment = 60; // 1 hour later
+        break;
+      default:
+        adjustment = 0;
+    }
+
+    return {
+      start: minutesToTime((startMinutes + adjustment + 24 * 60) % (24 * 60)),
+      end: minutesToTime((endMinutes + adjustment + 24 * 60) % (24 * 60))
+    };
+  }
+
+  private adjustSleepWindowForChronotype(
+    window: TimeWindow,
+    chronotype: ChronotypeCategory
+  ): TimeWindow {
+    const startMinutes = timeToMinutes(window.start);
+    const endMinutes = timeToMinutes(window.end);
+    let adjustment = 0;
+
+    // Calculate base sleep duration
+    let duration = endMinutes - startMinutes;
+    if (duration <= 0) {
+      duration += 24 * 60; // Add 24 hours if end time is next day
+    }
+
+    // Apply chronotype-based adjustments
+    switch (chronotype) {
+      case ChronotypeCategory.EARLY_MORNING:
+        adjustment = -120; // 2 hours earlier
+        break;
+      case ChronotypeCategory.MODERATE_MORNING:
+        adjustment = -60; // 1 hour earlier
+        break;
+      case ChronotypeCategory.MODERATE_EVENING:
+        adjustment = 60; // 1 hour later
+        break;
+      case ChronotypeCategory.LATE_EVENING:
+        adjustment = 120; // 2 hours later
+        break;
+      default:
+        adjustment = 0;
+    }
+
+    // Calculate new start time with adjustment
+    let newStartMinutes = (startMinutes + adjustment + 24 * 60) % (24 * 60);
+    
+    // For late chronotypes, ensure sleep doesn't start too early
+    if (chronotype === ChronotypeCategory.LATE_EVENING) {
+      const minStartHour = 22; // 10 PM
+      const currentStartHour = Math.floor(newStartMinutes / 60);
+      if (currentStartHour < minStartHour) {
+        newStartMinutes = minStartHour * 60;
+      }
+    }
+
+    // Calculate new end time maintaining the same duration
+    const newEndMinutes = (newStartMinutes + duration) % (24 * 60);
+
+    return {
+      start: minutesToTime(newStartMinutes),
+      end: minutesToTime(newEndMinutes)
+    };
+  }
+
+  private calculateNapWindow(sleepTiming: SleepTiming): TimeWindow[] {
+    const wakeMinutes = timeToMinutes(sleepTiming.wakeTime);
+    const bedMinutes = timeToMinutes(sleepTiming.bedTime);
+    
+    // Calculate mid-day point
+    let midDay = (wakeMinutes + bedMinutes) / 2;
+    if (bedMinutes < wakeMinutes) {
+      midDay = (wakeMinutes + (bedMinutes + 24 * 60)) / 2;
+    }
+    midDay = midDay % (24 * 60);
+
+    // For poor sleepers or long wake periods, provide multiple nap opportunities
+    const napWindows: TimeWindow[] = [];
+
+    // Early afternoon nap
+    const earlyNapStart = minutesToTime((midDay - 120 + 24 * 60) % (24 * 60));
+    const earlyNapEnd = minutesToTime((midDay - 60 + 24 * 60) % (24 * 60));
+    napWindows.push({ start: earlyNapStart, end: earlyNapEnd });
+
+    // Mid-afternoon nap
+    const midNapStart = minutesToTime((midDay - 30 + 24 * 60) % (24 * 60));
+    const midNapEnd = minutesToTime((midDay + 30 + 24 * 60) % (24 * 60));
+    napWindows.push({ start: midNapStart, end: midNapEnd });
+
+    // Late afternoon nap
+    const lateNapStart = minutesToTime((midDay + 60 + 24 * 60) % (24 * 60));
+    const lateNapEnd = minutesToTime((midDay + 120 + 24 * 60) % (24 * 60));
+    napWindows.push({ start: lateNapStart, end: lateNapEnd });
+
+    return napWindows;
   }
 
   public calculateLightTiming(

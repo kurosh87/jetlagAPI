@@ -1,35 +1,46 @@
-# Jetlag Mitigation API
+# Jetlag API
 
-A robust TypeScript API service for calculating jetlag severity and generating personalized mitigation schedules based on flight details and scientific principles of circadian rhythm adjustment.
+A RESTful API service for calculating and managing jet lag adaptation schedules, built with TypeScript and Vercel serverless functions.
 
 ## Features
 
-- Jetlag severity calculation based on multiple factors:
-  - Time zone differences
-  - Flight duration
-  - Layover impact
-  - Travel direction (eastward/westward)
-- Personalized activity schedules including:
-  - Sleep windows
-  - Light exposure recommendations
-  - Melatonin timing suggestions
-  - Caffeine intake guidance
-- Integration with flight data providers (Amadeus/FlightAware)
-- Firebase integration for user data management
-- Scientifically backed algorithms based on circadian rhythm research
+- Flight search and information retrieval
+- Airport data with timezone information
+- Personalized jet lag calculations
+- Chronotype assessment and recommendations
+- Weather data integration
+- Caching system for optimal performance
 
-## Prerequisites
+## API Documentation
 
-- Node.js (v14 or higher)
+### Base URL
+```
+https://jetlag-cxqrhjtmy-intrepid-app.vercel.app/api
+```
+
+### Core Endpoints
+
+- `POST /calculate` - Calculate jet lag adaptation schedule
+- `GET /chronotype` - Get chronotype assessment
+- `POST /chronotype` - Create/update user profile
+- `GET /flights/search` - Search flights
+- `GET /airports/search` - Search airports
+
+For detailed API documentation, see [API Documentation](docs/api/ENDPOINTS.md).
+
+## Getting Started
+
+### Prerequisites
+
+- Node.js 18+
 - npm or yarn
-- Firebase account and credentials
-- Amadeus or FlightAware API credentials
+- Redis (for caching)
 
-## Installation
+### Installation
 
 1. Clone the repository:
 ```bash
-git clone [repository-url]
+git clone https://github.com/yourusername/jetlag-api.git
 cd jetlag-api
 ```
 
@@ -42,97 +53,53 @@ npm install
 ```bash
 cp .env.example .env
 ```
-Edit the `.env` file with your configuration values.
 
-4. Build the project:
-```bash
-npm run build
-```
+Required environment variables:
+- `AMADEUS_CLIENT_ID` - Amadeus API client ID
+- `AMADEUS_CLIENT_SECRET` - Amadeus API client secret
+- `OPENWEATHER_API_KEY` - OpenWeather API key
+- `REDIS_URL` - Redis connection URL
 
-## Development
-
-Start the development server:
+4. Run development server:
 ```bash
 npm run dev
 ```
 
-The API will be available at `http://localhost:3000`.
-
-## API Endpoints
-
-### Calculate Jetlag
-
-`POST /api/jetlag/calculate`
-
-Request body:
-```json
-{
-  "origin": {
-    "code": "SFO",
-    "name": "San Francisco International Airport",
-    "city": "San Francisco",
-    "country": "United States",
-    "timezone": "America/Los_Angeles",
-    "coordinates": {
-      "latitude": 37.7749,
-      "longitude": -122.4194
-    }
-  },
-  "destination": {
-    "code": "NRT",
-    "name": "Narita International Airport",
-    "city": "Tokyo",
-    "country": "Japan",
-    "timezone": "Asia/Tokyo",
-    "coordinates": {
-      "latitude": 35.6762,
-      "longitude": 139.6503
-    }
-  },
-  "departureTime": "2024-01-01T08:00:00Z",
-  "arrivalTime": "2024-01-02T12:00:00Z",
-  "duration": 720,
-  "carrier": "United",
-  "flightNumber": "UA837"
-}
-```
-
-Response:
-```json
-{
-  "severity": {
-    "score": 7.5,
-    "timezoneDifference": 16,
-    "factors": {
-      "timezoneDifference": 16,
-      "flightDuration": 1.5,
-      "layoverImpact": 0,
-      "directionality": "westward"
-    }
-  },
-  "schedule": {
-    "sleepWindows": [...],
-    "lightExposure": [...],
-    "melatoninWindows": [...],
-    "caffeineWindows": [...]
-  }
-}
-```
-
-## Testing
+### Testing
 
 Run the test suite:
 ```bash
 npm test
 ```
 
-## Deployment
-
-The API is designed to be deployed on Vercel. Configure your Vercel project and deploy:
-
+Run with coverage:
 ```bash
-vercel
+npm run test:coverage
 ```
+
+## Mobile Integration
+
+### iOS Swift Integration
+
+1. Add the base URL to your configuration:
+```swift
+let baseURL = "https://jetlag-cxqrhjtmy-intrepid-app.vercel.app/api"
+```
+
+2. Create API client methods:
+```swift
+func searchFlight(carrier: String, flightNumber: String) async throws -> Flight {
+    let url = "\(baseURL)/flights/search?carrier=\(carrier)&flightNumber=\(flightNumber)"
+    // Implementation
+}
+
+func calculateJetlag(departureTime: Date, arrivalTime: Date, timeZoneDifference: Int) async throws -> Schedule {
+    let url = "\(baseURL)/calculate"
+    // Implementation
+}
+```
+
+See [Quick Start Guide](docs/api/QUICKSTART.md) for more integration examples.
 
 ## Contributing
 
@@ -144,10 +111,4 @@ vercel
 
 ## License
 
-This project is licensed under the MIT License - see the LICENSE file for details.
-
-## Acknowledgments
-
-- Circadian rhythm research papers and studies
-- Jetlag mitigation best practices
-- Open-source contributors 
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details. 

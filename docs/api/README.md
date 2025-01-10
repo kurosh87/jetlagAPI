@@ -1,229 +1,100 @@
-# API Reference
+# Jetlag API Documentation
+
+## Overview
+
+The Jetlag API provides endpoints for calculating personalized jet lag adaptation schedules based on flight details, user chronotype, and sleep preferences. Built on Vercel's serverless infrastructure, it offers high availability and automatic scaling.
 
 ## Base URL
 
-- Development: `http://localhost:3000/api`
-- Production: `https://your-domain.com/api`
+```
+https://jetlag-cxqrhjtmy-intrepid-app.vercel.app/api
+```
+
+## Available Endpoints
+
+### Core Endpoints
+
+- `POST /calculate` - Calculate jetlag adaptation schedule
+- `GET /chronotype` - Get chronotype assessment questions
+- `POST /chronotype` - Create/update user chronotype profile
+- `GET /flights/search` - Search for flights
+- `GET /airports/search` - Search for airports
+
+For detailed endpoint documentation, see [ENDPOINTS.md](./ENDPOINTS.md).
 
 ## Authentication
 
-All endpoints except `/users/register` require authentication. Include the Firebase ID token in the Authorization header:
-
-```
-Authorization: Bearer <firebase-id-token>
-```
-
-## Endpoints
-
-### User Management
-
-#### Register User
-```http
-POST /users/register
-Content-Type: application/json
-
-{
-  "email": "user@example.com",
-  "password": "securepassword"
-}
-```
-
-#### Get User Profile
-```http
-GET /users/:uid/profile
-```
-
-#### Update User Preferences
-```http
-PUT /users/:uid/preferences
-Content-Type: application/json
-
-{
-  "preferences": {
-    "defaultTimezone": "America/Los_Angeles",
-    "notificationsEnabled": true
-  }
-}
-```
-
-### Flight Operations
-
-#### Search Flights
-```http
-GET /flights/search?origin=SFO&destination=NRT&date=2024-02-01
-```
-
-Response:
-```json
-{
-  "flights": [
-    {
-      "id": "flight123",
-      "carrier": "United",
-      "flightNumber": "UA837",
-      "origin": {
-        "code": "SFO",
-        "name": "San Francisco International Airport",
-        "timezone": "America/Los_Angeles",
-        // ...
-      },
-      "destination": {
-        "code": "NRT",
-        "name": "Narita International Airport",
-        "timezone": "Asia/Tokyo",
-        // ...
-      },
-      "departureTime": "2024-02-01T10:00:00Z",
-      "arrivalTime": "2024-02-02T14:00:00Z",
-      "duration": 720
-    }
-  ]
-}
-```
-
-#### Search Airports
-```http
-GET /flights/airports?keyword=San%20Francisco
-```
-
-#### Get Flight Schedule
-```http
-GET /flights/schedule?carrierCode=UA&flightNumber=837&date=2024-02-01
-```
-
-### Jetlag Calculations
-
-#### Calculate Jetlag
-```http
-POST /jetlag/calculate
-Content-Type: application/json
-
-{
-  "origin": {
-    "code": "SFO",
-    "timezone": "America/Los_Angeles"
-  },
-  "destination": {
-    "code": "NRT",
-    "timezone": "Asia/Tokyo"
-  },
-  "departureTime": "2024-02-01T10:00:00Z",
-  "arrivalTime": "2024-02-02T14:00:00Z",
-  "duration": 720
-}
-```
-
-Response:
-```json
-{
-  "severity": {
-    "score": 7.5,
-    "timezoneDifference": 16,
-    "factors": {
-      "timezoneDifference": 16,
-      "flightDuration": 1.5,
-      "layoverImpact": 0,
-      "directionality": "westward"
-    }
-  },
-  "schedule": {
-    "sleepWindows": [
-      {
-        "start": "2024-02-01T21:00:00Z",
-        "end": "2024-02-02T05:00:00Z",
-        "priority": 4,
-        "notes": "Pre-flight sleep window"
-      }
-    ],
-    "lightExposure": [
-      {
-        "start": "2024-02-02T06:00:00Z",
-        "end": "2024-02-02T10:00:00Z",
-        "type": "bright",
-        "intensity": 10000
-      }
-    ],
-    "melatoninWindows": [
-      {
-        "start": "2024-02-02T19:00:00Z",
-        "end": "2024-02-02T21:00:00Z",
-        "priority": 3
-      }
-    ]
-  }
-}
-```
-
-## Error Handling
-
-The API uses standard HTTP status codes and returns errors in the following format:
-
-```json
-{
-  "error": "Error message here"
-}
-```
-
-Common status codes:
-- 200: Success
-- 201: Created
-- 400: Bad Request
-- 401: Unauthorized
-- 403: Forbidden
-- 404: Not Found
-- 500: Internal Server Error
+Currently, the API is open for testing. Authentication will be added in future updates.
 
 ## Rate Limiting
 
-- Development: 100 requests per minute
-- Production: 60 requests per minute
+- 100 requests per minute per IP
+- 1000 requests per hour per IP
 
-## Data Models
+## Response Format
 
-### Flight
-```typescript
-interface Flight {
-  id: string;
-  carrier: string;
-  flightNumber: string;
-  origin: Airport;
-  destination: Airport;
-  departureTime: Date;
-  arrivalTime: Date;
-  duration: number; // in minutes
-  layovers?: Layover[];
+All responses follow a consistent format:
+
+### Success Response
+```json
+{
+  "data": {
+    // Response data
+  }
 }
 ```
 
-### Airport
-```typescript
-interface Airport {
-  code: string;
-  name: string;
-  city: string;
-  country: string;
-  timezone: string;
-  coordinates: {
-    latitude: number;
-    longitude: number;
-  };
+### Error Response
+```json
+{
+  "error": "Error message",
+  "details": "Additional error details"
 }
 ```
 
-### JetlagSeverity
-```typescript
-interface JetlagSeverity {
-  score: number; // 0-10 scale
-  timezoneDifference: number;
-  factors: {
-    timezoneDifference: number;
-    flightDuration: number;
-    layoverImpact: number;
-    directionality: 'eastward' | 'westward';
-  };
-}
-```
+## Common Error Codes
 
-## SDKs and Examples
+- `400` - Bad Request (invalid input)
+- `404` - Not Found
+- `405` - Method Not Allowed
+- `429` - Too Many Requests
+- `500` - Internal Server Error
 
-See the [examples](../examples/) directory for code samples in various languages. 
+## Quick Start
+
+See [QUICKSTART.md](./QUICKSTART.md) for implementation examples and common use cases.
+
+## Data Formats
+
+### Times
+- All timestamps should be in ISO 8601 format with UTC timezone
+- Time strings for bed/wake times should be in 24-hour format (HH:MM)
+
+### Timezones
+- Timezone offsets are in hours
+- Positive values indicate eastward travel
+- Negative values indicate westward travel
+
+### IATA Codes
+- Airport codes should be uppercase
+- Carrier codes should be uppercase
+
+## Current Status
+
+- ✅ Core calculation endpoints
+- ✅ Flight and airport search (mock data)
+- ✅ Chronotype assessment
+- ⏳ External API integration (in progress)
+- ⏳ Authentication (planned)
+- ⏳ Caching (planned)
+
+## Resources
+
+- [Quick Start Guide](./QUICKSTART.md)
+- [Detailed Endpoints](./ENDPOINTS.md)
+- [Common Issues](./TROUBLESHOOTING.md)
+- [Integration Examples](./EXAMPLES.md)
+
+## Support
+
+For issues and feature requests, please use the GitHub issue tracker. 
