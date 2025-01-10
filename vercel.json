@@ -7,6 +7,7 @@
     }
   ],
   "rewrites": [
+    { "source": "/", "destination": "/api/index.ts" },
     { "source": "/api", "destination": "/api/index.ts" },
     { "source": "/api/test", "destination": "/api/test.ts" },
     { "source": "/api/calculate", "destination": "/api/calculate.ts" },
@@ -18,7 +19,7 @@
   ],
   "headers": [
     {
-      "source": "/api/(.*)",
+      "source": "/(.*)",
       "headers": [
         { "key": "Access-Control-Allow-Credentials", "value": "true" },
         { "key": "Access-Control-Allow-Origin", "value": "*" },
