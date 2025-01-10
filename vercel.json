@@ -8,42 +8,53 @@
   ],
   "routes": [
     {
-      "src": "/api",
+      "src": "/api/?$",
       "dest": "/api/index.ts"
     },
     {
-      "src": "/api/test",
+      "src": "/api/test/?$",
       "dest": "/api/test.ts"
     },
     {
-      "src": "/api/calculate",
+      "src": "/api/calculate/?$",
       "dest": "/api/calculate.ts",
       "methods": ["POST"]
     },
     {
-      "src": "/api/chronotype",
+      "src": "/api/chronotype/?$",
       "dest": "/api/chronotype.ts",
       "methods": ["GET", "POST"]
     },
     {
-      "src": "/api/flights/search",
+      "src": "/api/flights/search/?$",
       "dest": "/api/flights/search.ts",
       "methods": ["GET"]
     },
     {
-      "src": "/api/airports/search",
+      "src": "/api/airports/search/?$",
       "dest": "/api/airports/search.ts",
       "methods": ["GET"]
     },
     {
-      "src": "/api/weather/location",
+      "src": "/api/weather/location/?$",
       "dest": "/api/weather/location.ts",
       "methods": ["GET"]
     },
     {
-      "src": "/api/weather/airport",
+      "src": "/api/weather/airport/?$",
       "dest": "/api/weather/airport.ts",
       "methods": ["GET"]
+    }
+  ],
+  "headers": [
+    {
+      "source": "/api/(.*)",
+      "headers": [
+        { "key": "Access-Control-Allow-Credentials", "value": "true" },
+        { "key": "Access-Control-Allow-Origin", "value": "*" },
+        { "key": "Access-Control-Allow-Methods", "value": "GET,OPTIONS,PATCH,DELETE,POST,PUT" },
+        { "key": "Access-Control-Allow-Headers", "value": "X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version" }
+      ]
     }
   ],
   "env": {
