@@ -10,6 +10,7 @@
     { "source": "/", "destination": "/api/index.ts" },
     { "source": "/api", "destination": "/api/index.ts" },
     { "source": "/api/test", "destination": "/api/test.ts" },
+    { "source": "/api/test/flight", "destination": "/api/test/flight.ts" },
     { "source": "/api/calculate", "destination": "/api/calculate.ts" },
     { "source": "/api/chronotype", "destination": "/api/chronotype.ts" },
     { "source": "/api/flights/search", "destination": "/api/flights/search.ts" },
