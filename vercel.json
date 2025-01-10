@@ -8,24 +8,42 @@
   ],
   "routes": [
     {
-      "src": "/api/calculate",
-      "dest": "/api/calculate.ts"
+      "src": "/api",
+      "dest": "/api/index.ts"
     },
     {
       "src": "/api/test",
       "dest": "/api/test.ts"
     },
     {
+      "src": "/api/calculate",
+      "dest": "/api/calculate.ts",
+      "methods": ["POST"]
+    },
+    {
       "src": "/api/chronotype",
-      "dest": "/api/chronotype.ts"
+      "dest": "/api/chronotype.ts",
+      "methods": ["GET", "POST"]
     },
     {
       "src": "/api/flights/search",
-      "dest": "/api/flights/search.ts"
+      "dest": "/api/flights/search.ts",
+      "methods": ["GET"]
     },
     {
       "src": "/api/airports/search",
-      "dest": "/api/airports/search.ts"
+      "dest": "/api/airports/search.ts",
+      "methods": ["GET"]
+    },
+    {
+      "src": "/api/weather/location",
+      "dest": "/api/weather/location.ts",
+      "methods": ["GET"]
+    },
+    {
+      "src": "/api/weather/airport",
+      "dest": "/api/weather/airport.ts",
+      "methods": ["GET"]
     }
   ],
   "env": {
