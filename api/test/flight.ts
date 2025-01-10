@@ -1,8 +1,7 @@
 import { VercelRequest, VercelResponse } from '@vercel/node';
 
 export const config = {
-  runtime: 'nodejs18.x',
-  regions: ['sfo1'],
+  runtime: 'edge',
   public: true
 };
 
