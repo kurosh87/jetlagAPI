@@ -11,6 +11,7 @@ export class FlightService {
     departureDate: string
   ): Promise<Flight[]> {
     try {
+      console.log('Searching flights with params:', { originCode, destinationCode, departureDate });
       const response = await amadeus.shopping.flightOffersSearch.get({
         originLocationCode: originCode,
         destinationLocationCode: destinationCode,
@@ -19,9 +20,20 @@ export class FlightService {
         max: '5'
       });
 
+      console.log('Amadeus response:', {
+        status: response.statusCode,
+        hasData: !!response.data,
+        dataLength: response.data?.length
+      });
+
       return this.mapAmadeusFlightsToFlights(response.data);
     } catch (error) {
-      console.error('Error searching flights:', error);
+      console.error('Error searching flights:', {
+        error: error.message,
+        code: error.code,
+        status: error.status,
+        stack: error.stack
+      });
       throw error;
     }
   }
@@ -31,9 +43,16 @@ export class FlightService {
    */
   public async getAirportInfo(iataCode: string): Promise<Airport> {
     try {
+      console.log('Getting airport info for:', iataCode);
       const response = await amadeus.referenceData.locations.get({
         keyword: iataCode,
         subType: 'AIRPORT'
+      });
+
+      console.log('Amadeus airport response:', {
+        status: response.statusCode,
+        hasData: !!response.data,
+        dataLength: response.data?.length
       });
 
       if (response.data.length === 0) {
@@ -42,7 +61,12 @@ export class FlightService {
 
       return this.mapAmadeusAirportToAirport(response.data[0]);
     } catch (error) {
-      console.error('Error fetching airport info:', error);
+      console.error('Error fetching airport info:', {
+        error: error.message,
+        code: error.code,
+        status: error.status,
+        stack: error.stack
+      });
       throw error;
     }
   }
@@ -52,14 +76,26 @@ export class FlightService {
    */
   public async searchAirports(keyword: string): Promise<Airport[]> {
     try {
+      console.log('Searching airports with keyword:', keyword);
       const response = await amadeus.referenceData.locations.get({
         keyword,
         subType: 'AIRPORT'
       });
 
+      console.log('Amadeus airports response:', {
+        status: response.statusCode,
+        hasData: !!response.data,
+        dataLength: response.data?.length
+      });
+
       return response.data.map(this.mapAmadeusAirportToAirport);
     } catch (error) {
-      console.error('Error searching airports:', error);
+      console.error('Error searching airports:', {
+        error: error.message,
+        code: error.code,
+        status: error.status,
+        stack: error.stack
+      });
       throw error;
     }
   }
