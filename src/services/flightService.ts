@@ -12,10 +12,12 @@ export class FlightService {
   private tokenExpiry: Date | null = null;
 
   constructor() {
-    // Basic environment check
-    console.log('NODE_ENV:', process.env.NODE_ENV);
-    console.log('Has AMADEUS_API_KEY:', !!process.env.AMADEUS_API_KEY);
-    console.log('Has AMADEUS_API_SECRET:', !!process.env.AMADEUS_API_SECRET);
+    // Log all available environment variables (excluding sensitive ones)
+    console.log('Available environment variables:', 
+      Object.keys(process.env)
+        .filter(key => !key.includes('KEY') && !key.includes('SECRET') && !key.includes('TOKEN'))
+        .reduce((acc, key) => ({ ...acc, [key]: process.env[key] }), {})
+    );
   }
 
   /**
