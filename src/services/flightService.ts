@@ -1,42 +1,8 @@
 import { Flight, Airport } from '../types';
 import dotenv from 'dotenv';
-import fs from 'fs';
-import path from 'path';
 
-// Load environment variables
-if (process.env.NODE_ENV === 'production') {
-  // In production, try to read from /etc/secrets first
-  const secretFiles = [
-    'AMADEUS_API_KEY',
-    'AMADEUS_API_SECRET',
-    'NODE_ENV',
-    'PORT',
-    'FIREBASE_PROJECT_ID',
-    'FIREBASE_STORAGE_BUCKET',
-    'FIREBASE_EMULATOR'
-  ];
-
-  secretFiles.forEach(file => {
-    const filePath = `/etc/secrets/${file}`;
-    try {
-      if (fs.existsSync(filePath)) {
-        process.env[file] = fs.readFileSync(filePath, 'utf8').trim();
-        console.log(`Loaded from secret file: ${file}`);
-      } else {
-        // If secret file doesn't exist, check if it's already set as env var
-        if (process.env[file]) {
-          console.log(`Using environment variable: ${file}`);
-        } else {
-          console.warn(`Neither secret file nor environment variable found for: ${file}`);
-        }
-      }
-    } catch (error) {
-      console.error(`Error reading secret file ${file}:`, error);
-      // If there's an error reading the secret file, keep any existing env var
-    }
-  });
-} else {
-  // In development, use dotenv
+// Load environment variables from .env in development
+if (process.env.NODE_ENV !== 'production') {
   dotenv.config();
 }
 
@@ -47,12 +13,11 @@ export class FlightService {
 
   constructor() {
     // Log current environment
-    console.log('Current NODE_ENV:', process.env.NODE_ENV);
-    console.log('Current PORT:', process.env.PORT);
-    console.log('API Key exists:', !!process.env.AMADEUS_API_KEY);
-    console.log('API Secret exists:', !!process.env.AMADEUS_API_SECRET);
-    console.log('API Key length:', process.env.AMADEUS_API_KEY?.length);
-    console.log('API Secret length:', process.env.AMADEUS_API_SECRET?.length);
+    console.log('Environment:', {
+      NODE_ENV: process.env.NODE_ENV,
+      PORT: process.env.PORT,
+      AMADEUS_CONFIGURED: !!process.env.AMADEUS_API_KEY && !!process.env.AMADEUS_API_SECRET
+    });
 
     // Validate required environment variables
     const requiredEnvVars = ['AMADEUS_API_KEY', 'AMADEUS_API_SECRET'];
@@ -62,14 +27,6 @@ export class FlightService {
       console.error('Missing required environment variables:', missingEnvVars);
       throw new Error(`Missing required environment variables: ${missingEnvVars.join(', ')}`);
     }
-
-    // Log environment for debugging (without sensitive data)
-    console.log('Environment:', {
-      NODE_ENV: process.env.NODE_ENV,
-      PORT: process.env.PORT,
-      FIREBASE_EMULATOR: process.env.FIREBASE_EMULATOR,
-      AMADEUS_CONFIGURED: !!process.env.AMADEUS_API_KEY && !!process.env.AMADEUS_API_SECRET
-    });
   }
 
   /**
