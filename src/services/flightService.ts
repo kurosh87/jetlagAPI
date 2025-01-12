@@ -11,6 +11,13 @@ export class FlightService {
   private accessToken: string | null = null;
   private tokenExpiry: Date | null = null;
 
+  constructor() {
+    // Basic environment check
+    console.log('NODE_ENV:', process.env.NODE_ENV);
+    console.log('Has AMADEUS_API_KEY:', !!process.env.AMADEUS_API_KEY);
+    console.log('Has AMADEUS_API_SECRET:', !!process.env.AMADEUS_API_SECRET);
+  }
+
   /**
    * Get access token for Amadeus API
    */
