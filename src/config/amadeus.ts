@@ -1,6 +1,5 @@
 import Amadeus from 'amadeus';
 import dotenv from 'dotenv';
-import https from 'https';
 
 dotenv.config();
 
@@ -18,14 +17,9 @@ console.log('Amadeus Configuration:', {
   apiSecretFirstChars: apiSecret ? `${apiSecret.substring(0, 4)}...` : 'none'
 });
 
-const httpsAgent = new https.Agent({
-  rejectUnauthorized: false,
-  keepAlive: true
-});
-
 export const amadeus = new Amadeus({
   clientId: apiKey,
   clientSecret: apiSecret,
   hostname: 'api.amadeus.com',
-  customAgent: httpsAgent
+  logLevel: 'debug'
 }); 
