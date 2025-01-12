@@ -12,20 +12,9 @@ export class FlightService {
   private tokenExpiry: Date | null = null;
 
   constructor() {
-    // Log current environment
-    console.log('Environment:', {
-      NODE_ENV: process.env.NODE_ENV,
-      PORT: process.env.PORT,
-      AMADEUS_CONFIGURED: !!process.env.AMADEUS_API_KEY && !!process.env.AMADEUS_API_SECRET
-    });
-
-    // Validate required environment variables
-    const requiredEnvVars = ['AMADEUS_API_KEY', 'AMADEUS_API_SECRET'];
-    const missingEnvVars = requiredEnvVars.filter(envVar => !process.env[envVar]);
-    
-    if (missingEnvVars.length > 0) {
-      console.error('Missing required environment variables:', missingEnvVars);
-      throw new Error(`Missing required environment variables: ${missingEnvVars.join(', ')}`);
+    // Simple check for required environment variables
+    if (!process.env.AMADEUS_API_KEY || !process.env.AMADEUS_API_SECRET) {
+      throw new Error('Amadeus API credentials not configured');
     }
   }
 
