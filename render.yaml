@@ -9,16 +9,6 @@ services:
         value: production
       - key: PORT
         value: "10000"
-      - key: AMADEUS_API_KEY
-        value: 5v4qAUOvNrAE0DKEvHFi9On5KM4c5mD1
-      - key: AMADEUS_API_SECRET
-        value: mvoeMRpVhsIAxseJ
-      - key: FIREBASE_EMULATOR
-        value: "true"
-      - key: FIREBASE_PROJECT_ID
-        value: tripbase-13c00
-      - key: FIREBASE_STORAGE_BUCKET
-        value: tripbase-13c00.firebasestorage.app
     routes:
       - type: rewrite
         source: /*
