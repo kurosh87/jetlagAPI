@@ -19,5 +19,6 @@ console.log('Amadeus Configuration:', {
 
 export const amadeus = new Amadeus({
   clientId: apiKey,
-  clientSecret: apiSecret
+  clientSecret: apiSecret,
+  hostname: 'api.amadeus.com'
 }); 
