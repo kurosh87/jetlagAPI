@@ -18,13 +18,28 @@ if (process.env.NODE_ENV !== 'production') {
     ];
     
     console.log('Running in production mode, attempting to read secrets from /etc/secrets');
+    console.log('Current directory:', process.cwd());
+    console.log('Directory contents of /etc/secrets:');
+    try {
+      const secretsDir = fs.readdirSync('/etc/secrets');
+      console.log(secretsDir);
+    } catch (err) {
+      console.error('Failed to read /etc/secrets directory:', err.message);
+    }
+    
     for (const secretName of secretFiles) {
       const secretPath = `/etc/secrets/${secretName}`;
       console.log(`Attempting to read secret from: ${secretPath}`);
       try {
-        const secretValue = fs.readFileSync(secretPath, 'utf8').trim();
-        process.env[secretName] = secretValue;
-        console.log(`Successfully loaded secret: ${secretName}`);
+        const exists = fs.existsSync(secretPath);
+        console.log(`Secret file ${secretName} exists: ${exists}`);
+        if (exists) {
+          const secretValue = fs.readFileSync(secretPath, 'utf8').trim();
+          process.env[secretName] = secretValue;
+          console.log(`Successfully loaded secret: ${secretName}`);
+        } else {
+          console.error(`Secret file not found: ${secretPath}`);
+        }
       } catch (err) {
         console.error(`Failed to read secret ${secretName}:`, err.message);
       }
