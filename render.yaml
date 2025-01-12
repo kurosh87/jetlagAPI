@@ -5,10 +5,20 @@ services:
     buildCommand: npm install && npm run build
     startCommand: npm start
     envVars:
-      - key: NODE_ENV
-        value: production
       - key: PORT
         value: "10000"
+      - key: NODE_ENV
+        value: production
+      - key: AMADEUS_API_KEY
+        sync: false  # Secure value to be set in Dashboard
+      - key: AMADEUS_API_SECRET
+        sync: false  # Secure value to be set in Dashboard
+      - key: FIREBASE_EMULATOR
+        value: "true"
+      - key: FIREBASE_PROJECT_ID
+        value: tripbase-13c00
+      - key: FIREBASE_STORAGE_BUCKET
+        value: tripbase-13c00.firebasestorage.app
     routes:
       - type: rewrite
         source: /*
