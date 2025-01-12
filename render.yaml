@@ -9,6 +9,7 @@ services:
         value: production
       - key: PORT
         value: "10000"
+      - fromGroup: jetlag
     routes:
       - type: rewrite
         source: /*
