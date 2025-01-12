@@ -11,14 +11,6 @@ export class FlightService {
   private accessToken: string | null = null;
   private tokenExpiry: Date | null = null;
 
-  constructor() {
-    // Debug logging
-    console.log('Environment variables available:', Object.keys(process.env).filter(key => !key.includes('KEY') && !key.includes('SECRET') && !key.includes('PASSWORD')));
-    console.log('AMADEUS_API_KEY exists:', !!process.env.AMADEUS_API_KEY);
-    console.log('AMADEUS_API_SECRET exists:', !!process.env.AMADEUS_API_SECRET);
-    console.log('NODE_ENV:', process.env.NODE_ENV);
-  }
-
   /**
    * Get access token for Amadeus API
    */
@@ -27,52 +19,27 @@ export class FlightService {
       return this.accessToken;
     }
 
-    console.log('Environment:', {
-      NODE_ENV: process.env.NODE_ENV,
-      HAS_API_KEY: !!process.env.AMADEUS_API_KEY,
-      API_KEY_LENGTH: process.env.AMADEUS_API_KEY?.length,
-      HAS_API_SECRET: !!process.env.AMADEUS_API_SECRET,
-      API_SECRET_LENGTH: process.env.AMADEUS_API_SECRET?.length
-    });
-
-    const apiKey = process.env.AMADEUS_API_KEY?.trim();
-    const apiSecret = process.env.AMADEUS_API_SECRET?.trim();
+    const apiKey = process.env.AMADEUS_API_KEY;
+    const apiSecret = process.env.AMADEUS_API_SECRET;
 
     if (!apiKey || !apiSecret) {
-      console.error('Missing credentials:', {
-        hasApiKey: !!apiKey,
-        hasApiSecret: !!apiSecret,
-        apiKeyLength: apiKey?.length,
-        apiSecretLength: apiSecret?.length
-      });
       throw new Error('Amadeus API credentials required for this operation');
     }
 
     try {
-      const formData = new URLSearchParams({
-        'grant_type': 'client_credentials',
-        'client_id': apiKey,
-        'client_secret': apiSecret
-      });
-
-      console.log('Making token request to:', 'https://api.amadeus.com/v1/security/oauth2/token');
-      
       const response = await fetch('https://api.amadeus.com/v1/security/oauth2/token', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded',
         },
-        body: formData.toString(),
+        body: new URLSearchParams({
+          'grant_type': 'client_credentials',
+          'client_id': apiKey,
+          'client_secret': apiSecret
+        }).toString(),
       });
 
       if (!response.ok) {
-        const errorData = await response.text();
-        console.error('Token request failed:', {
-          status: response.status,
-          statusText: response.statusText,
-          error: errorData,
-          requestBody: formData.toString()
-        });
         throw new Error(`Failed to get access token: ${response.statusText}`);
       }
 
@@ -81,7 +48,6 @@ export class FlightService {
       this.tokenExpiry = new Date(Date.now() + data.expires_in * 1000);
       return this.accessToken;
     } catch (error) {
-      console.error('Error getting access token:', error);
       throw error;
     }
   }
