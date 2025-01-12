@@ -49,6 +49,10 @@ export class FlightService {
     // Log current environment
     console.log('Current NODE_ENV:', process.env.NODE_ENV);
     console.log('Current PORT:', process.env.PORT);
+    console.log('API Key exists:', !!process.env.AMADEUS_API_KEY);
+    console.log('API Secret exists:', !!process.env.AMADEUS_API_SECRET);
+    console.log('API Key length:', process.env.AMADEUS_API_KEY?.length);
+    console.log('API Secret length:', process.env.AMADEUS_API_SECRET?.length);
 
     // Validate required environment variables
     const requiredEnvVars = ['AMADEUS_API_KEY', 'AMADEUS_API_SECRET'];
