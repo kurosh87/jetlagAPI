@@ -129,8 +129,30 @@ app.post('/api/jetlag', (req: Request, res: Response) => {
 
 // Error handling
 app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
-  console.error(err.stack);
-  res.status(500).json({ error: 'Something went wrong!' });
+  console.error('Error details:', {
+    message: err.message,
+    stack: err.stack,
+    name: err.name
+  });
+  
+  // If it's an Amadeus API error, it might have additional details
+  const amadeusError = err as any;
+  if (amadeusError.code || amadeusError.status) {
+    return res.status(500).json({
+      error: 'API Error',
+      details: {
+        message: amadeusError.message,
+        code: amadeusError.code,
+        status: amadeusError.status
+      }
+    });
+  }
+
+  res.status(500).json({ 
+    error: 'Something went wrong!',
+    message: err.message,
+    type: err.name
+  });
 });
 
 // Handle 404
