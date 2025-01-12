@@ -4,16 +4,24 @@ services:
     env: node
     buildCommand: npm install && npm run build
     startCommand: npm start
+    envVarGroups:
+      - name: jetlag-prod
+        envVars:
+          - key: AMADEUS_API_KEY
+            sync: false
+          - key: AMADEUS_API_SECRET
+            sync: false
+          - key: FIREBASE_PROJECT_ID
+            sync: false
+          - key: FIREBASE_STORAGE_BUCKET
+            sync: false
+          - key: FIREBASE_EMULATOR
+            sync: false
     envVars:
       - key: PORT
         value: "10000"
       - key: NODE_ENV
-        value: production
-      - fromGroup: jetlag-prod
-    routes:
-      - type: rewrite
-        source: /*
-        destination: /
+        value: "production"
     healthCheckPath: /api
     autoDeploy: true
 
