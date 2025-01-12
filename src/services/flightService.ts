@@ -12,7 +12,11 @@ export class FlightService {
   private tokenExpiry: Date | null = null;
 
   constructor() {
-    // No validation in constructor - let the API methods handle it
+    // Debug logging
+    console.log('Environment variables available:', Object.keys(process.env).filter(key => !key.includes('KEY') && !key.includes('SECRET') && !key.includes('PASSWORD')));
+    console.log('AMADEUS_API_KEY exists:', !!process.env.AMADEUS_API_KEY);
+    console.log('AMADEUS_API_SECRET exists:', !!process.env.AMADEUS_API_SECRET);
+    console.log('NODE_ENV:', process.env.NODE_ENV);
   }
 
   /**
