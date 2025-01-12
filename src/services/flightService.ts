@@ -2,6 +2,16 @@ import { amadeus } from '../config/amadeus';
 import { Flight, Airport } from '../types';
 
 export class FlightService {
+  private async getAccessToken(): Promise<string> {
+    try {
+      const response = await amadeus.authenticate();
+      return response.result.access_token;
+    } catch (error) {
+      console.error('Error getting access token:', error);
+      throw error;
+    }
+  }
+
   /**
    * Search for flights between two cities
    */
@@ -12,6 +22,10 @@ export class FlightService {
   ): Promise<Flight[]> {
     try {
       console.log('Searching flights with params:', { originCode, destinationCode, departureDate });
+      
+      // Get fresh access token
+      await this.getAccessToken();
+      
       const response = await amadeus.shopping.flightOffersSearch.get({
         originLocationCode: originCode,
         destinationLocationCode: destinationCode,
@@ -46,6 +60,10 @@ export class FlightService {
   public async getAirportInfo(iataCode: string): Promise<Airport> {
     try {
       console.log('Getting airport info for:', iataCode);
+      
+      // Get fresh access token
+      await this.getAccessToken();
+      
       const response = await amadeus.referenceData.locations.get({
         keyword: iataCode,
         subType: 'AIRPORT'
@@ -81,6 +99,10 @@ export class FlightService {
   public async searchAirports(keyword: string): Promise<Airport[]> {
     try {
       console.log('Searching airports with keyword:', keyword);
+      
+      // Get fresh access token
+      await this.getAccessToken();
+      
       const response = await amadeus.referenceData.locations.get({
         keyword,
         subType: 'AIRPORT'
