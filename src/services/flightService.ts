@@ -5,7 +5,7 @@ import path from 'path';
 
 // Load environment variables
 if (process.env.NODE_ENV === 'production') {
-  // In production, read from /etc/secrets
+  // In production, try to read from /etc/secrets first
   const secretFiles = [
     'AMADEUS_API_KEY',
     'AMADEUS_API_SECRET',
@@ -21,12 +21,18 @@ if (process.env.NODE_ENV === 'production') {
     try {
       if (fs.existsSync(filePath)) {
         process.env[file] = fs.readFileSync(filePath, 'utf8').trim();
-        console.log(`Loaded secret: ${file}`);
+        console.log(`Loaded from secret file: ${file}`);
       } else {
-        console.warn(`Secret file not found: ${file}`);
+        // If secret file doesn't exist, check if it's already set as env var
+        if (process.env[file]) {
+          console.log(`Using environment variable: ${file}`);
+        } else {
+          console.warn(`Neither secret file nor environment variable found for: ${file}`);
+        }
       }
     } catch (error) {
       console.error(`Error reading secret file ${file}:`, error);
+      // If there's an error reading the secret file, keep any existing env var
     }
   });
 } else {
@@ -40,6 +46,10 @@ export class FlightService {
   private tokenExpiry: Date | null = null;
 
   constructor() {
+    // Log current environment
+    console.log('Current NODE_ENV:', process.env.NODE_ENV);
+    console.log('Current PORT:', process.env.PORT);
+
     // Validate required environment variables
     const requiredEnvVars = ['AMADEUS_API_KEY', 'AMADEUS_API_SECRET'];
     const missingEnvVars = requiredEnvVars.filter(envVar => !process.env[envVar]);
