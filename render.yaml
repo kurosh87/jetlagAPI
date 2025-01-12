@@ -9,7 +9,7 @@ services:
         value: production
       - key: PORT
         value: "10000"
-      - fromGroup: jetlag
+      - fromGroup: env-clr5vhqdrqts73fmvkr0
     routes:
       - type: rewrite
         source: /*
