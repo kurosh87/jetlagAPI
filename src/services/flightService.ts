@@ -1,8 +1,26 @@
 import { Flight, Airport } from '../types';
 import dotenv from 'dotenv';
+import fs from 'fs';
+import path from 'path';
 
 // Load environment variables
-dotenv.config();
+if (process.env.NODE_ENV === 'production') {
+  // In production, read from /etc/secrets
+  try {
+    const secretFiles = ['AMADEUS_API_KEY', 'AMADEUS_API_SECRET'];
+    secretFiles.forEach(file => {
+      const filePath = `/etc/secrets/${file}`;
+      if (fs.existsSync(filePath)) {
+        process.env[file] = fs.readFileSync(filePath, 'utf8').trim();
+      }
+    });
+  } catch (error) {
+    console.error('Error reading secret files:', error);
+  }
+} else {
+  // In development, use dotenv
+  dotenv.config();
+}
 
 export class FlightService {
   private baseUrl = 'https://api.amadeus.com/v1';
@@ -18,6 +36,12 @@ export class FlightService {
       console.error('Missing required environment variables:', missingEnvVars);
       throw new Error(`Missing required environment variables: ${missingEnvVars.join(', ')}`);
     }
+
+    // Log environment for debugging (without sensitive data)
+    console.log('Environment:', {
+      NODE_ENV: process.env.NODE_ENV,
+      AMADEUS_CONFIGURED: !!process.env.AMADEUS_API_KEY && !!process.env.AMADEUS_API_SECRET
+    });
   }
 
   /**
