@@ -1,12 +1,25 @@
 import { Flight, Airport } from '../types';
 import dotenv from 'dotenv';
+import path from 'path';
 
-dotenv.config();
+// Load environment variables from .env file
+dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 
 export class FlightService {
-  private baseUrl = 'https://api.amadeus.com/v1';
+  private baseUrl = 'https://test.api.amadeus.com/v1';
   private accessToken: string | null = null;
   private tokenExpiry: Date | null = null;
+
+  constructor() {
+    // Validate required environment variables
+    const requiredEnvVars = ['AMADEUS_API_KEY', 'AMADEUS_API_SECRET'];
+    const missingEnvVars = requiredEnvVars.filter(envVar => !process.env[envVar]);
+    
+    if (missingEnvVars.length > 0) {
+      console.error('Missing required environment variables:', missingEnvVars);
+      throw new Error(`Missing required environment variables: ${missingEnvVars.join(', ')}`);
+    }
+  }
 
   /**
    * Get access token for Amadeus API
