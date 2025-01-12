@@ -4,12 +4,12 @@ import https from 'https';
 
 dotenv.config();
 
-// Always use test environment for now
-const apiKey = 'r0crDqGd5OaacbQD0LRspXkSu2I4eWSE';
-const apiSecret = 'Put1RlnJlOax8ojf';
+// Use production credentials
+const apiKey = '5v4qAUOvNrAE0DKEvHFi9On5KM4c5mD1';
+const apiSecret = 'mvoeMRpVhsIAxseJ';
 
 console.log('Amadeus Configuration:', {
-  environment: 'test',
+  environment: 'production',
   hasApiKey: !!apiKey,
   apiKeyLength: apiKey?.length || 0,
   apiKeyFirstChars: apiKey ? `${apiKey.substring(0, 4)}...` : 'none',
@@ -26,6 +26,6 @@ const httpsAgent = new https.Agent({
 export const amadeus = new Amadeus({
   clientId: apiKey,
   clientSecret: apiSecret,
-  hostname: 'test.api.amadeus.com',
+  hostname: 'api.amadeus.com',
   customAgent: httpsAgent
 }); 
