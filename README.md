@@ -1,153 +1,294 @@
-# Jetlag Mitigation API
+# Jetlag API
 
-A robust TypeScript API service for calculating jetlag severity and generating personalized mitigation schedules based on flight details and scientific principles of circadian rhythm adjustment.
+A robust TypeScript API service for jetlag mitigation and flight scheduling. This API provides endpoints for flight search, airport lookup, and personalized jetlag adaptation schedules.
 
-## Features
+## Live API
 
-- Jetlag severity calculation based on multiple factors:
-  - Time zone differences
-  - Flight duration
-  - Layover impact
-  - Travel direction (eastward/westward)
-- Personalized activity schedules including:
-  - Sleep windows
-  - Light exposure recommendations
-  - Melatonin timing suggestions
-  - Caffeine intake guidance
-- Integration with flight data providers (Amadeus/FlightAware)
-- Firebase integration for user data management
-- Scientifically backed algorithms based on circadian rhythm research
+Base URL: `https://web-production-ab6d3.up.railway.app`
 
-## Prerequisites
+## API Documentation
 
-- Node.js (v14 or higher)
-- npm or yarn
-- Firebase account and credentials
-- Amadeus or FlightAware API credentials
-
-## Installation
-
-1. Clone the repository:
-```bash
-git clone [repository-url]
-cd jetlag-api
+### Health Check
+```http
+GET /api
 ```
+Returns the API health status and current timestamp.
 
-2. Install dependencies:
-```bash
-npm install
-```
-
-3. Set up environment variables:
-```bash
-cp .env.example .env
-```
-Edit the `.env` file with your configuration values.
-
-4. Build the project:
-```bash
-npm run build
-```
-
-## Development
-
-Start the development server:
-```bash
-npm run dev
-```
-
-The API will be available at `http://localhost:3000`.
-
-## API Endpoints
-
-### Calculate Jetlag
-
-`POST /api/jetlag/calculate`
-
-Request body:
+#### Response
 ```json
 {
-  "origin": {
-    "code": "SFO",
-    "name": "San Francisco International Airport",
-    "city": "San Francisco",
-    "country": "United States",
-    "timezone": "America/Los_Angeles",
-    "coordinates": {
-      "latitude": 37.7749,
-      "longitude": -122.4194
-    }
-  },
-  "destination": {
-    "code": "NRT",
-    "name": "Narita International Airport",
-    "city": "Tokyo",
-    "country": "Japan",
-    "timezone": "Asia/Tokyo",
-    "coordinates": {
-      "latitude": 35.6762,
-      "longitude": 139.6503
-    }
-  },
-  "departureTime": "2024-01-01T08:00:00Z",
-  "arrivalTime": "2024-01-02T12:00:00Z",
-  "duration": 720,
-  "carrier": "United",
-  "flightNumber": "UA837"
+  "status": "healthy",
+  "timestamp": "2025-01-12T23:38:35.935Z"
 }
 ```
 
-Response:
+### Flight Search
+```http
+POST /api/flights/search
+```
+Search for flights by carrier code and flight number.
+
+#### Request Body
 ```json
 {
+  "carrierCode": "BR",
+  "flightNumber": "10",
+  "scheduledDepartureDate": "2025-01-15"
+}
+```
+
+#### Response
+```json
+[
+  {
+    "id": "BR10",
+    "carrier": "BR",
+    "flightNumber": "10",
+    "origin": {
+      "code": "TPE",
+      "timezone": "+08:00"
+    },
+    "destination": {
+      "code": "YVR",
+      "timezone": "-08:00"
+    },
+    "departureTime": "2025-01-15T15:55:00.000Z",
+    "arrivalTime": "2025-01-16T02:35:00.000Z",
+    "duration": 640,
+    "equipment": "77W",
+    "partnership": {
+      "operatingCarrier": "AC",
+      "operatingFlightNumber": "6546"
+    }
+  }
+]
+```
+
+### Airport Search
+```http
+GET /api/airports/search?keyword=tokyo
+```
+Search for airports by keyword.
+
+#### Response
+```json
+[
+  {
+    "code": "HND",
+    "name": "TOKYO INTL HANEDA",
+    "city": "TOKYO",
+    "country": "JAPAN",
+    "timezone": "+09:00",
+    "coordinates": {
+      "latitude": 35.55223,
+      "longitude": 139.77969
+    }
+  }
+]
+```
+
+### Jetlag Calculation
+```http
+POST /api/jetlag
+```
+Calculate personalized jetlag adaptation schedule.
+
+#### Request Body
+```json
+{
+  "flight": {
+    "departure": "2025-01-15T15:55:00.000Z",
+    "arrival": "2025-01-16T02:35:00.000Z",
+    "originTimezone": "+08:00",
+    "destinationTimezone": "-08:00"
+  },
+  "phase": "arrival"
+}
+```
+
+#### Response
+```json
+{
+  "flight": {
+    "departure": "2025-01-15T15:55:00.000Z",
+    "arrival": "2025-01-16T02:35:00.000Z",
+    "originTimezone": "Asia/Taipei",
+    "destinationTimezone": "America/Vancouver"
+  },
+  "phase": "arrival",
   "severity": {
-    "score": 7.5,
-    "timezoneDifference": 16,
+    "score": null,
+    "timezoneDifference": -16,
     "factors": {
       "timezoneDifference": 16,
-      "flightDuration": 1.5,
+      "flightDuration": null,
       "layoverImpact": 0,
-      "directionality": "westward"
-    }
+      "directionality": "westward",
+      "timeOfDayImpact": 0.5
+    },
+    "adaptationDays": 16
   },
-  "schedule": {
-    "sleepWindows": [...],
-    "lightExposure": [...],
-    "melatoninWindows": [...],
-    "caffeineWindows": [...]
+  "schedule": [
+    {
+      "time": "11:00 PM",
+      "activity": "sleep",
+      "duration": "30 minutes",
+      "description": "Post-flight sleep window"
+    }
+  ],
+  "recommendations": [
+    "Seek bright light from 07:00 PM to 09:00 PM",
+    "Avoid bright light from 06:00 AM to 08:00 AM",
+    "Take melatonin at 09:00 PM",
+    "Avoid caffeine after 05:00 PM"
+  ]
+}
+```
+
+## Flutter Integration Guide
+
+### 1. Add Dependencies
+Add the following to your `pubspec.yaml`:
+
+```yaml
+dependencies:
+  http: ^1.1.0
+  timezone: ^0.9.2
+```
+
+### 2. API Client Example
+
+```dart
+import 'package:http/http.dart' as http;
+import 'dart:convert';
+
+class JetlagApiClient {
+  static const String baseUrl = 'https://web-production-ab6d3.up.railway.app';
+
+  Future<Map<String, dynamic>> searchFlight(String carrierCode, String flightNumber, String date) async {
+    final response = await http.post(
+      Uri.parse('$baseUrl/api/flights/search'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'carrierCode': carrierCode,
+        'flightNumber': flightNumber,
+        'scheduledDepartureDate': date,
+      }),
+    );
+
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body);
+    } else {
+      throw Exception('Failed to search flight');
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> searchAirports(String keyword) async {
+    final response = await http.get(
+      Uri.parse('$baseUrl/api/airports/search?keyword=$keyword'),
+    );
+
+    if (response.statusCode == 200) {
+      return List<Map<String, dynamic>>.from(jsonDecode(response.body));
+    } else {
+      throw Exception('Failed to search airports');
+    }
+  }
+
+  Future<Map<String, dynamic>> calculateJetlag({
+    required String departure,
+    required String arrival,
+    required String originTimezone,
+    required String destinationTimezone,
+    String phase = 'arrival',
+  }) async {
+    final response = await http.post(
+      Uri.parse('$baseUrl/api/jetlag'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'flight': {
+          'departure': departure,
+          'arrival': arrival,
+          'originTimezone': originTimezone,
+          'destinationTimezone': destinationTimezone,
+        },
+        'phase': phase,
+      }),
+    );
+
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body);
+    } else {
+      throw Exception('Failed to calculate jetlag schedule');
+    }
   }
 }
 ```
 
-## Testing
+### 3. Usage Example
 
-Run the test suite:
-```bash
-npm test
+```dart
+void main() async {
+  final api = JetlagApiClient();
+
+  // Search for a flight
+  try {
+    final flight = await api.searchFlight('BR', '10', '2025-01-15');
+    print('Flight found: ${flight.toString()}');
+  } catch (e) {
+    print('Error searching flight: $e');
+  }
+
+  // Search for airports
+  try {
+    final airports = await api.searchAirports('tokyo');
+    print('Airports found: ${airports.toString()}');
+  } catch (e) {
+    print('Error searching airports: $e');
+  }
+
+  // Calculate jetlag schedule
+  try {
+    final schedule = await api.calculateJetlag(
+      departure: '2025-01-15T15:55:00.000Z',
+      arrival: '2025-01-16T02:35:00.000Z',
+      originTimezone: '+08:00',
+      destinationTimezone: '-08:00',
+    );
+    print('Jetlag schedule: ${schedule.toString()}');
+  } catch (e) {
+    print('Error calculating jetlag: $e');
+  }
+}
 ```
+
+## Environment Variables
+
+Required environment variables for deployment:
+
+```env
+PORT=3000
+NODE_ENV=production
+FIREBASE_PROJECT_ID=tripbase-13c00
+FIREBASE_STORAGE_BUCKET=tripbase-13c00.firebasestorage.app
+FIREBASE_EMULATOR=false
+AMADEUS_API_KEY=your_api_key
+AMADEUS_API_SECRET=your_api_secret
+```
+
+## Development
+
+1. Clone the repository
+2. Install dependencies: `npm install`
+3. Copy `.env.example` to `.env` and fill in the values
+4. Run development server: `npm run dev`
 
 ## Deployment
 
-The API is designed to be deployed on Vercel. Configure your Vercel project and deploy:
+The API is deployed on Railway. To deploy your own instance:
 
-```bash
-vercel
-```
-
-## Contributing
-
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add some amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
-
-## License
-
-This project is licensed under the MIT License - see the LICENSE file for details.
-
-## Acknowledgments
-
-- Circadian rhythm research papers and studies
-- Jetlag mitigation best practices
-- Open-source contributors 
+1. Fork this repository
+2. Create a new project on Railway
+3. Connect your GitHub repository
+4. Add the required environment variables
+5. Deploy! 
