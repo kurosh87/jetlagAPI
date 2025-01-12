@@ -1,16 +1,15 @@
 import express from 'express';
+import type { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
-import helmet from 'helmet';
 
 const app = express();
 
 // Middleware
 app.use(cors());
-app.use(helmet());
 app.use(express.json());
 
 // Root endpoint with API documentation
-app.get('/', (req, res) => {
+app.get('/', (_req: Request, res: Response) => {
   res.json({
     name: 'Jetlag API',
     version: '1.0.0',
@@ -41,7 +40,7 @@ app.get('/', (req, res) => {
 });
 
 // Weather endpoint
-app.get('/api/weather', (req, res) => {
+app.get('/api/weather', (req: Request, res: Response) => {
   const { lat, lon } = req.query;
   
   // Mock weather response for testing
@@ -54,11 +53,13 @@ app.get('/api/weather', (req, res) => {
 });
 
 // Jetlag endpoint
-app.post('/api/jetlag', (req, res) => {
+app.post('/api/jetlag', (req: Request, res: Response) => {
   const { flight, phase } = req.body;
   
   // Mock schedule response for testing
   res.json({
+    flight,
+    phase,
     schedule: [
       {
         time: '08:00',
@@ -79,19 +80,22 @@ app.post('/api/jetlag', (req, res) => {
 });
 
 // Error handling
-app.use((err: Error, req: express.Request, res: express.Response, next: express.NextFunction) => {
+app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
   console.error(err.stack);
   res.status(500).json({ error: 'Something went wrong!' });
 });
 
 // Handle 404
-app.use((req, res) => {
+app.use((_req: Request, res: Response) => {
   res.status(404).json({ error: 'Endpoint not found. Visit / for API documentation.' });
 });
 
-const port = process.env.PORT || 3000;
-app.listen(port, () => {
-  console.log(`Server running on port ${port}`);
-});
+// Start server
+if (require.main === module) {
+  const port = process.env.PORT || 3000;
+  app.listen(port, () => {
+    console.log(`Server running on port ${port}`);
+  });
+}
 
 export default app; 
