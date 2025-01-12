@@ -1,0 +1,25 @@
+name: jetlag-api
+services:
+  - name: api
+    github:
+      branch: main
+      deploy_on_push: true
+    build_command: npm install && npm run build
+    run_command: npm start
+    envs:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: "10000"
+      - key: AMADEUS_API_KEY
+        type: SECRET
+      - key: AMADEUS_API_SECRET
+        type: SECRET
+      - key: FIREBASE_EMULATOR
+        value: "true"
+      - key: FIREBASE_PROJECT_ID
+        value: tripbase-13c00
+      - key: FIREBASE_STORAGE_BUCKET
+        value: tripbase-13c00.firebasestorage.app
+    health_check:
+      http_path: /api 
