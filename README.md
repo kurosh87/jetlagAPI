@@ -262,6 +262,281 @@ void main() async {
 }
 ```
 
+## Flutter Models
+
+Here are some helpful model classes for your Flutter app:
+
+```dart
+// models/flight.dart
+class Flight {
+  final String id;
+  final String carrier;
+  final String flightNumber;
+  final Airport origin;
+  final Airport destination;
+  final DateTime departureTime;
+  final DateTime arrivalTime;
+  final int duration;
+  final String equipment;
+  final Partnership? partnership;
+
+  Flight({
+    required this.id,
+    required this.carrier,
+    required this.flightNumber,
+    required this.origin,
+    required this.destination,
+    required this.departureTime,
+    required this.arrivalTime,
+    required this.duration,
+    required this.equipment,
+    this.partnership,
+  });
+
+  factory Flight.fromJson(Map<String, dynamic> json) {
+    return Flight(
+      id: json['id'],
+      carrier: json['carrier'],
+      flightNumber: json['flightNumber'],
+      origin: Airport.fromJson(json['origin']),
+      destination: Airport.fromJson(json['destination']),
+      departureTime: DateTime.parse(json['departureTime']),
+      arrivalTime: DateTime.parse(json['arrivalTime']),
+      duration: json['duration'],
+      equipment: json['equipment'],
+      partnership: json['partnership'] != null 
+        ? Partnership.fromJson(json['partnership']) 
+        : null,
+    );
+  }
+}
+
+// models/airport.dart
+class Airport {
+  final String code;
+  final String name;
+  final String city;
+  final String country;
+  final String timezone;
+  final Coordinates coordinates;
+
+  Airport({
+    required this.code,
+    required this.name,
+    required this.city,
+    required this.country,
+    required this.timezone,
+    required this.coordinates,
+  });
+
+  factory Airport.fromJson(Map<String, dynamic> json) {
+    return Airport(
+      code: json['code'],
+      name: json['name'] ?? '',
+      city: json['city'] ?? '',
+      country: json['country'] ?? '',
+      timezone: json['timezone'],
+      coordinates: Coordinates.fromJson(json['coordinates'] ?? {'latitude': 0, 'longitude': 0}),
+    );
+  }
+}
+
+// models/coordinates.dart
+class Coordinates {
+  final double latitude;
+  final double longitude;
+
+  Coordinates({
+    required this.latitude,
+    required this.longitude,
+  });
+
+  factory Coordinates.fromJson(Map<String, dynamic> json) {
+    return Coordinates(
+      latitude: json['latitude'].toDouble(),
+      longitude: json['longitude'].toDouble(),
+    );
+  }
+}
+
+// models/partnership.dart
+class Partnership {
+  final String operatingCarrier;
+  final String operatingFlightNumber;
+
+  Partnership({
+    required this.operatingCarrier,
+    required this.operatingFlightNumber,
+  });
+
+  factory Partnership.fromJson(Map<String, dynamic> json) {
+    return Partnership(
+      operatingCarrier: json['operatingCarrier'],
+      operatingFlightNumber: json['operatingFlightNumber'],
+    );
+  }
+}
+
+// models/jetlag_schedule.dart
+class JetlagSchedule {
+  final Flight flight;
+  final String phase;
+  final JetlagSeverity severity;
+  final List<Activity> schedule;
+  final List<String> recommendations;
+
+  JetlagSchedule({
+    required this.flight,
+    required this.phase,
+    required this.severity,
+    required this.schedule,
+    required this.recommendations,
+  });
+
+  factory JetlagSchedule.fromJson(Map<String, dynamic> json) {
+    return JetlagSchedule(
+      flight: Flight.fromJson(json['flight']),
+      phase: json['phase'],
+      severity: JetlagSeverity.fromJson(json['severity']),
+      schedule: (json['schedule'] as List)
+          .map((e) => Activity.fromJson(e))
+          .toList(),
+      recommendations: List<String>.from(json['recommendations']),
+    );
+  }
+}
+
+## Common Use Cases
+
+### 1. Search and Display Flight Details
+
+```dart
+class FlightSearchScreen extends StatefulWidget {
+  @override
+  _FlightSearchScreenState createState() => _FlightSearchScreenState();
+}
+
+class _FlightSearchScreenState extends State<FlightSearchScreen> {
+  final api = JetlagApiClient();
+  Flight? flight;
+  String? error;
+
+  Future<void> searchFlight(String carrier, String number, String date) async {
+    try {
+      setState(() => error = null);
+      final response = await api.searchFlight(carrier, number, date);
+      final flights = (response as List)
+          .map((e) => Flight.fromJson(e))
+          .toList();
+      
+      if (flights.isNotEmpty) {
+        setState(() => flight = flights.first);
+      }
+    } catch (e) {
+      setState(() => error = e.toString());
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // Build your UI here
+  }
+}
+```
+
+### 2. Calculate and Display Jetlag Schedule
+
+```dart
+class JetlagScheduleScreen extends StatefulWidget {
+  final Flight flight;
+  
+  JetlagScheduleScreen({required this.flight});
+  
+  @override
+  _JetlagScheduleScreenState createState() => _JetlagScheduleScreenState();
+}
+
+class _JetlagScheduleScreenState extends State<JetlagScheduleScreen> {
+  final api = JetlagApiClient();
+  JetlagSchedule? schedule;
+  String? error;
+
+  @override
+  void initState() {
+    super.initState();
+    calculateSchedule();
+  }
+
+  Future<void> calculateSchedule() async {
+    try {
+      setState(() => error = null);
+      final response = await api.calculateJetlag(
+        departure: widget.flight.departureTime.toIso8601String(),
+        arrival: widget.flight.arrivalTime.toIso8601String(),
+        originTimezone: widget.flight.origin.timezone,
+        destinationTimezone: widget.flight.destination.timezone,
+      );
+      setState(() => schedule = JetlagSchedule.fromJson(response));
+    } catch (e) {
+      setState(() => error = e.toString());
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // Build your UI here
+  }
+}
+```
+
+## Error Handling
+
+The API returns standard HTTP status codes:
+
+- 200: Success
+- 400: Bad Request (invalid parameters)
+- 401: Unauthorized (invalid API credentials)
+- 404: Not Found
+- 500: Internal Server Error
+
+Example error response:
+```json
+{
+  "error": "Something went wrong!",
+  "message": "Flight search failed: The targeted resource doesn't exist",
+  "type": "Error"
+}
+```
+
+Handle errors in your Flutter app:
+
+```dart
+try {
+  final result = await api.searchFlight('XX', '999', '2025-01-15');
+  // Handle success
+} catch (e) {
+  if (e is Exception) {
+    // Handle specific error types
+    showErrorDialog(context, e.toString());
+  }
+}
+```
+
+## Rate Limits
+
+- Flight Search: 100 requests per minute
+- Airport Search: 200 requests per minute
+- Jetlag Calculation: 300 requests per minute
+
+## Best Practices
+
+1. Cache responses when possible to reduce API calls
+2. Implement retry logic for failed requests
+3. Use proper error handling
+4. Format dates in ISO 8601 format
+5. Handle timezone conversions properly
+6. Validate input before making API calls
+
 ## Environment Variables
 
 Required environment variables for deployment:
