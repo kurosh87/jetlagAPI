@@ -18,11 +18,16 @@ console.log('=== Environment Variables at Startup ===');
 console.log(JSON.stringify(envVars, null, 2));
 console.log('=======================================');
 
-console.log('Credential Status:', {
-  AMADEUS_API_KEY: process.env.AMADEUS_API_KEY ? 'Present' : 'Missing',
-  AMADEUS_API_SECRET: process.env.AMADEUS_API_SECRET ? 'Present' : 'Missing',
+// Log specific environment group variables
+console.log('Environment Group Status:', {
+  GROUP_NAME: 'jetlag',
+  AMADEUS_API_KEY: process.env.AMADEUS_API_KEY ? `Present (${process.env.AMADEUS_API_KEY.length} chars)` : 'Missing',
+  AMADEUS_API_SECRET: process.env.AMADEUS_API_SECRET ? `Present (${process.env.AMADEUS_API_SECRET.length} chars)` : 'Missing',
   NODE_ENV: process.env.NODE_ENV,
-  PORT: process.env.PORT
+  PORT: process.env.PORT,
+  FIREBASE_PROJECT_ID: process.env.FIREBASE_PROJECT_ID || 'Missing',
+  FIREBASE_STORAGE_BUCKET: process.env.FIREBASE_STORAGE_BUCKET || 'Missing',
+  FIREBASE_EMULATOR: process.env.FIREBASE_EMULATOR || 'Missing'
 });
 
 const app = express();
