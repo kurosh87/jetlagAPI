@@ -12,9 +12,12 @@ export class FlightService {
   private tokenExpiry: Date | null = null;
 
   constructor() {
-    // Simple check for required environment variables
-    if (!process.env.AMADEUS_API_KEY || !process.env.AMADEUS_API_SECRET) {
-      throw new Error('Amadeus API credentials not configured');
+    // Verify Amadeus credentials
+    const apiKey = process.env.AMADEUS_API_KEY?.trim();
+    const apiSecret = process.env.AMADEUS_API_SECRET?.trim();
+    
+    if (!apiKey || !apiSecret) {
+      throw new Error('Amadeus API credentials missing');
     }
   }
 
@@ -26,18 +29,18 @@ export class FlightService {
       return this.accessToken;
     }
 
-    const apiKey = process.env.AMADEUS_API_KEY;
-    const apiSecret = process.env.AMADEUS_API_SECRET;
+    const apiKey = process.env.AMADEUS_API_KEY?.trim();
+    const apiSecret = process.env.AMADEUS_API_SECRET?.trim();
 
     if (!apiKey || !apiSecret) {
-      throw new Error('Amadeus API credentials not configured');
+      throw new Error('Amadeus API credentials missing');
     }
 
     try {
       const formData = new URLSearchParams({
         'grant_type': 'client_credentials',
-        'client_id': apiKey.trim(),
-        'client_secret': apiSecret.trim()
+        'client_id': apiKey,
+        'client_secret': apiSecret
       }).toString();
 
       const response = await fetch('https://api.amadeus.com/v1/security/oauth2/token', {
