@@ -16,16 +16,18 @@ export class FlightService {
       return this.accessToken;
     }
 
-    const credentials = {
-      apiKey: process.env.AMADEUS_API_KEY,
-      apiSecret: process.env.AMADEUS_API_SECRET,
-      apiKeyLength: process.env.AMADEUS_API_KEY?.length,
-      apiSecretLength: process.env.AMADEUS_API_SECRET?.length
-    };
+    const apiKey = process.env.AMADEUS_API_KEY;
+    const apiSecret = process.env.AMADEUS_API_SECRET;
 
-    console.log('Getting access token with credentials:', credentials);
+    if (!apiKey || !apiSecret) {
+      throw new Error('Amadeus API credentials not configured');
+    }
 
-    const formData = `grant_type=client_credentials&client_id=${encodeURIComponent(credentials.apiKey || '')}&client_secret=${encodeURIComponent(credentials.apiSecret || '')}`;
+    const formData = new URLSearchParams({
+      'grant_type': 'client_credentials',
+      'client_id': apiKey,
+      'client_secret': apiSecret
+    }).toString();
 
     const response = await fetch('https://api.amadeus.com/v1/security/oauth2/token', {
       method: 'POST',
@@ -39,8 +41,7 @@ export class FlightService {
       const errorData = await response.text();
       console.error('Token request failed:', {
         status: response.status,
-        statusText: response.statusText,
-        errorData
+        statusText: response.statusText
       });
       throw new Error(`Failed to get access token: ${response.statusText}`);
     }
