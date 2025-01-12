@@ -6,7 +6,7 @@ import path from 'path';
 dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 
 export class FlightService {
-  private baseUrl = 'https://test.api.amadeus.com/v1';
+  private baseUrl = 'https://api.amadeus.com/v1';
   private accessToken: string | null = null;
   private tokenExpiry: Date | null = null;
 
@@ -43,7 +43,7 @@ export class FlightService {
         'client_secret': apiSecret.trim()
       }).toString();
 
-      const response = await fetch('https://test.api.amadeus.com/v1/security/oauth2/token', {
+      const response = await fetch('https://api.amadeus.com/v1/security/oauth2/token', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded',
