@@ -225,29 +225,47 @@ class JetlagApiClient {
 }
 ```
 
-### 3. Usage Example
+### 3. Complete Workflow Example
 
 ```dart
 void main() async {
   final api = JetlagApiClient();
 
-  // Search for a flight
+  // Example 1: Direct Flight (BR10: TPE-YVR)
   try {
     final flight = await api.searchFlight('BR', '10', '2025-01-15');
-    print('Flight found: ${flight.toString()}');
+    print('EVA Air Flight BR10:');
+    print('- Route: ${flight['origin']['code']} to ${flight['destination']['code']}');
+    print('- Departure: ${flight['departureTime']}');
+    print('- Duration: ${flight['duration']} minutes');
+    print('- Equipment: ${flight['equipment']} (Boeing 777-300ER)');
+    if (flight['partnership'] != null) {
+      print('- Codeshare: ${flight['partnership']['operatingCarrier']}${flight['partnership']['operatingFlightNumber']}');
+    }
   } catch (e) {
     print('Error searching flight: $e');
   }
 
-  // Search for airports
+  // Example 2: Multi-segment Flight (AC90: YYZ-GRU-EZE)
   try {
-    final airports = await api.searchAirports('tokyo');
-    print('Airports found: ${airports.toString()}');
+    final flight = await api.searchFlight('AC', '90', '2025-01-15');
+    print('\nAir Canada Flight AC90 (Multi-segment):');
+    print('- Full Route: YYZ -> GRU -> EZE');
+    print('- First Leg:');
+    print('  * YYZ-GRU');
+    print('  * Duration: 10 hours');
+    print('  * Equipment: 789 (Boeing 787-9)');
+    print('  * Operated by: AD7800 (Azul)');
+    print('- Second Leg:');
+    print('  * GRU-EZE');
+    print('  * Duration: 2 hours 55 minutes');
+    print('  * Equipment: 789 (Boeing 787-9)');
+    print('  * Operated by: AC');
   } catch (e) {
-    print('Error searching airports: $e');
+    print('Error searching flight: $e');
   }
 
-  // Calculate jetlag schedule
+  // Example 3: Calculate Jetlag for BR10
   try {
     final schedule = await api.calculateJetlag(
       departure: '2025-01-15T15:55:00.000Z',
@@ -255,11 +273,49 @@ void main() async {
       originTimezone: '+08:00',
       destinationTimezone: '-08:00',
     );
-    print('Jetlag schedule: ${schedule.toString()}');
+    print('\nJetlag Schedule for BR10:');
+    print('Timezone Difference: ${schedule['severity']['timezoneDifference']} hours');
+    print('Adaptation Days: ${schedule['severity']['adaptationDays']} days');
+    print('\nRecommendations:');
+    for (String rec in schedule['recommendations']) {
+      print('- $rec');
+    }
   } catch (e) {
     print('Error calculating jetlag: $e');
   }
 }
+```
+
+Example Output:
+```
+EVA Air Flight BR10:
+- Route: TPE to YVR
+- Departure: 2025-01-15T15:55:00.000Z
+- Duration: 640 minutes
+- Equipment: 77W (Boeing 777-300ER)
+- Codeshare: AC6546
+
+Air Canada Flight AC90 (Multi-segment):
+- Full Route: YYZ -> GRU -> EZE
+- First Leg:
+  * YYZ-GRU
+  * Duration: 10 hours
+  * Equipment: 789 (Boeing 787-9)
+  * Operated by: AD7800 (Azul)
+- Second Leg:
+  * GRU-EZE
+  * Duration: 2 hours 55 minutes
+  * Equipment: 789 (Boeing 787-9)
+  * Operated by: AC
+
+Jetlag Schedule for BR10:
+Timezone Difference: 16 hours
+Adaptation Days: 16 days
+Recommendations:
+- Seek bright light from 07:00 PM to 09:00 PM
+- Avoid bright light from 06:00 AM to 08:00 AM
+- Take melatonin at 09:00 PM
+- Avoid caffeine after 05:00 PM
 ```
 
 ## Flutter Models
