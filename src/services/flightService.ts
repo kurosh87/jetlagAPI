@@ -1,9 +1,21 @@
 import { Flight, Airport } from '../types';
 import dotenv from 'dotenv';
+import fs from 'fs';
+import path from 'path';
 
 // Load environment variables from .env in development
 if (process.env.NODE_ENV !== 'production') {
   dotenv.config();
+} else {
+  // In production, read from /etc/secrets
+  try {
+    const amadeusKey = fs.readFileSync('/etc/secrets/AMADEUS_API_KEY', 'utf8').trim();
+    const amadeusSecret = fs.readFileSync('/etc/secrets/AMADEUS_API_SECRET', 'utf8').trim();
+    process.env.AMADEUS_API_KEY = amadeusKey;
+    process.env.AMADEUS_API_SECRET = amadeusSecret;
+  } catch (error) {
+    console.error('Error reading secrets:', error);
+  }
 }
 
 export class FlightService {
@@ -12,12 +24,9 @@ export class FlightService {
   private tokenExpiry: Date | null = null;
 
   constructor() {
-    // Log all available environment variables (excluding sensitive ones)
-    console.log('Available environment variables:', 
-      Object.keys(process.env)
-        .filter(key => !key.includes('KEY') && !key.includes('SECRET') && !key.includes('TOKEN'))
-        .reduce((acc, key) => ({ ...acc, [key]: process.env[key] }), {})
-    );
+    console.log('Environment:', process.env.NODE_ENV);
+    console.log('Has API key:', !!process.env.AMADEUS_API_KEY);
+    console.log('Has API secret:', !!process.env.AMADEUS_API_SECRET);
   }
 
   /**
