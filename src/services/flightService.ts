@@ -1,9 +1,8 @@
 import { Flight, Airport } from '../types';
 import dotenv from 'dotenv';
-import path from 'path';
 
-// Load environment variables from .env file
-dotenv.config({ path: path.resolve(__dirname, '../../.env') });
+// Load environment variables
+dotenv.config();
 
 export class FlightService {
   private baseUrl = 'https://api.amadeus.com/v1';
