@@ -13,5 +13,5 @@ services:
       - type: rewrite
         source: /*
         destination: /
-    healthCheckPath: /
+    healthCheckPath: /api
     autoDeploy: true 

@@ -39,6 +39,11 @@ app.get('/', (_req: Request, res: Response) => {
   });
 });
 
+// Health check endpoint
+app.get('/api', (_req: Request, res: Response) => {
+  res.json({ status: 'healthy', timestamp: new Date().toISOString() });
+});
+
 // Weather endpoint
 app.get('/api/weather', (req: Request, res: Response) => {
   const { lat, lon } = req.query;
