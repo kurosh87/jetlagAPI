@@ -101,7 +101,7 @@ export class FlightService {
           name: '', // To be filled with getAirportInfo
           city: '',
           country: '',
-          timezone: segment.departure.terminal || '',
+          timezone: segment.departure.terminal || 'UTC',
           coordinates: {
             latitude: 0,
             longitude: 0
@@ -112,7 +112,7 @@ export class FlightService {
           name: '', // To be filled with getAirportInfo
           city: '',
           country: '',
-          timezone: segment.arrival.terminal || '',
+          timezone: segment.arrival.terminal || 'UTC',
           coordinates: {
             latitude: 0,
             longitude: 0
@@ -163,15 +163,15 @@ export class FlightService {
           name: '', // To be filled with getAirportInfo
           city: '',
           country: '',
-          timezone: currentSegment.arrival.terminal || '',
+          timezone: currentSegment.arrival.terminal || 'UTC',
           coordinates: {
             latitude: 0,
             longitude: 0
           }
         },
-        duration,
-        arrivalTime: layoverStart,
-        departureTime: layoverEnd
+        arrival: layoverStart,
+        departure: layoverEnd,
+        duration
       });
     }
     return layovers;

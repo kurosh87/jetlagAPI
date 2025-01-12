@@ -13,14 +13,8 @@ export interface Airport {
   name: string;
   city: string;
   country: string;
-  timezone: {
-    name: string;
-    offset: number;
-  };
-  location: {
-    latitude: number;
-    longitude: number;
-  };
+  timezone: string;
+  coordinates: Coordinates;
 }
 
 export interface Layover {
@@ -31,13 +25,14 @@ export interface Layover {
 }
 
 export interface Flight {
+  id?: string;
   carrier: string;
   flightNumber: string;
   origin: Airport;
   destination: Airport;
-  departure: Date;
-  arrival: Date;
-  duration: number; // in seconds
+  departureTime: Date;
+  arrivalTime: Date;
+  duration: number; // in minutes
   layovers?: Layover[];
 }
 
@@ -161,28 +156,4 @@ export interface WeatherData {
 export interface LocationWeather {
   current: WeatherData;
   daily: WeatherData[];
-}
-
-export interface LightConditions {
-  latitude: number;
-  longitude: number;
-  sunriseTime?: string;
-  sunsetTime?: string;
-  dayLength?: number;
-  uvIndex?: number;
-}
-
-export interface LightTiming {
-  morning: {
-    start: string;
-    duration: number;
-    intensity: LightIntensity;
-    naturalLight: boolean;
-  };
-  evening: {
-    start: string;
-    duration: number;
-    intensity: LightIntensity;
-    naturalLight: boolean;
-  };
 } 

@@ -1,8 +1,10 @@
 import express from 'express';
 import type { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
+import { FlightService } from '../services/flightService';
 
 const app = express();
+const flightService = new FlightService();
 
 // Middleware
 app.use(cors());
@@ -34,6 +36,22 @@ app.get('/', (_req: Request, res: Response) => {
           phase: 'string'
         },
         description: 'Get jetlag mitigation schedule'
+      },
+      '/api/flights/search': {
+        method: 'POST',
+        body: {
+          origin: 'string (IATA code)',
+          destination: 'string (IATA code)',
+          date: 'string (YYYY-MM-DD)'
+        },
+        description: 'Search for flights between airports'
+      },
+      '/api/airports/search': {
+        method: 'GET',
+        params: {
+          keyword: 'string'
+        },
+        description: 'Search for airports by keyword'
       }
     }
   });
@@ -55,6 +73,31 @@ app.get('/api/weather', (req: Request, res: Response) => {
     conditions: 'sunny',
     timestamp: new Date().toISOString()
   });
+});
+
+// Flight search endpoint
+app.post('/api/flights/search', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { origin, destination, date } = req.body;
+    const flights = await flightService.searchFlights(origin, destination, date);
+    res.json(flights);
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Airport search endpoint
+app.get('/api/airports/search', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { keyword } = req.query;
+    if (!keyword || typeof keyword !== 'string') {
+      return res.status(400).json({ error: 'Keyword parameter is required' });
+    }
+    const airports = await flightService.searchAirports(keyword);
+    res.json(airports);
+  } catch (error) {
+    next(error);
+  }
 });
 
 // Jetlag endpoint
