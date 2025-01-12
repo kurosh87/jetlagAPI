@@ -50,7 +50,7 @@ if (process.env.NODE_ENV !== 'production') {
 }
 
 export class FlightService {
-  private baseUrl = 'https://api.amadeus.com/v1';
+  private baseUrl = 'https://api.amadeus.com/v2';
   private accessToken: string | null = null;
   private tokenExpiry: Date | null = null;
 
