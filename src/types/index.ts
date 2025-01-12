@@ -25,51 +25,91 @@ export interface Layover {
 }
 
 export interface Flight {
-  id?: string;
+  id: string;
   carrier: string;
   flightNumber: string;
-  origin: Airport;
-  destination: Airport;
-  departureTime: Date;
-  arrivalTime: Date;
-  duration: number; // in minutes
-  layovers?: Layover[];
+  origin: {
+    code: string;
+    name: string;
+    city: string;
+    country: string;
+    timezone: string;
+    coordinates: {
+      latitude: number;
+      longitude: number;
+    }
+  };
+  destination: {
+    code: string;
+    name: string;
+    city: string;
+    country: string;
+    timezone: string;
+    coordinates: {
+      latitude: number;
+      longitude: number;
+    }
+  };
+  departureTime: string | Date;
+  arrivalTime: string | Date;
+  duration: number;
+  equipment: string;
+  partnership?: {
+    operatingCarrier: string;
+    operatingFlightNumber: string;
+  };
+  isSegment: boolean;
+  segmentIndex: number;
+  totalSegments: number;
+  layovers?: FlightLayover[];
+}
+
+export interface FlightLayover {
+  airport: {
+    code: string;
+    name: string;
+    city: string;
+    country: string;
+    timezone: string;
+    coordinates: {
+      latitude: number;
+      longitude: number;
+    }
+  };
+  arrival: string | Date;
+  departure: string | Date;
+  duration: number;
 }
 
 export interface JetlagSeverity {
   score: number;
+  timezoneDifference: number;
   factors: {
-    timezoneChange: number;
-    direction: 'eastward' | 'westward';
+    timezoneDifference: number;
     flightDuration: number;
-    arrivalTime: number;
-    layoverImpact?: number;
-    accumulatedFatigue?: number;
+    layoverImpact: number;
+    directionality: 'eastward' | 'westward';
+    timeOfDayImpact: number;
   };
+  adaptationDays: number;
 }
 
-export type ActivityType = 'light' | 'sleep' | 'caffeine' | 'supplement' | 'exercise' | 'meal';
-export type LightIntensity = 'no' | 'some' | 'full';
-
-export interface TimeWindow {
-  start: string;
-  end: string;
+export enum ActivityType {
+  SLEEP = 'sleep',
+  LIGHT_EXPOSURE = 'light exposure',
+  AVOID_LIGHT = 'avoid light',
+  MELATONIN = 'melatonin',
+  MEAL = 'meal',
+  CAFFEINE = 'caffeine',
+  EXERCISE = 'exercise'
 }
 
-export type ActivityPriority = 'critical' | 'high' | 'medium' | 'low';
-
-export interface Activity {
-  type: ActivityType;
-  timeWindow: {
-    start: string;
-    end: string;
-  };
-  description: string;
-  priority: ActivityPriority;
-  intensity?: LightIntensity;
-  naturalLight?: boolean;
-  isFlexible?: boolean;
-  duration?: number;
+export enum ActivityPriority {
+  CRITICAL = 5,
+  HIGH = 4,
+  MEDIUM = 3,
+  LOW = 2,
+  FLEXIBLE = 1
 }
 
 export interface AdaptationDay {
@@ -86,11 +126,8 @@ export interface ActivitySchedule {
 }
 
 export interface CircadianPhase {
-  bedtime: string; // 24-hour format HH:mm
-  wakeTime: string; // 24-hour format HH:mm
-  peakAlertness: string; // 24-hour format HH:mm
-  naturalMelatoninOnset: string; // 24-hour format HH:mm
-  cbtMin?: string; // Core body temperature minimum, typically ~2 hours before wake
+  bedTime: string;
+  wakeTime: string;
 }
 
 export interface LightExposureWindow {
@@ -156,4 +193,133 @@ export interface WeatherData {
 export interface LocationWeather {
   current: WeatherData;
   daily: WeatherData[];
+}
+
+export interface AdaptationSchedule {
+  preFlight: CircadianSchedule;
+  inFlight: CircadianSchedule;
+  postFlight: CircadianSchedule;
+  severity: JetlagSeverity;
+}
+
+export const CIRCADIAN_CONSTANTS = {
+  AVERAGE_ADJUSTMENT_RATE: 1,      // Hours per day the body can adjust
+  MELATONIN_WINDOW: 2,            // Hours before desired sleep for melatonin
+  CAFFEINE_HALFLIFE: 5,           // Hours for caffeine to reduce by half
+  MIN_SLEEP_DURATION: 7,          // Minimum recommended sleep hours
+  MAX_SLEEP_DURATION: 9,          // Maximum recommended sleep hours
+  MAX_LIGHT_INTENSITY: 10000,     // Lux for bright light therapy
+  DIM_LIGHT_THRESHOLD: 50,        // Lux threshold for melatonin production
+  CORE_TEMP_MINIMUM: 4,           // Hours before natural wake time
+  PHASE_ADVANCE_LIMIT: 2.5,       // Maximum hours to advance per day
+  PHASE_DELAY_LIMIT: 2,           // Maximum hours to delay per day
+  MEAL_TIMING_IMPACT: 0.5,        // Impact factor of meal timing
+  MAX_SHIFT_PER_DAY: 60,         // Maximum minutes to shift per day
+  CAFFEINE_CUTOFF: 6             // Hours before bed to stop caffeine
+};
+
+export const LIGHT_EXPOSURE_ADJUSTMENT = {
+  ADVANCE: {
+    MAX_SHIFT: 90,    // Maximum minutes to advance per day
+    OPTIMAL_START: -6, // Hours before core body temperature minimum
+    OPTIMAL_END: -2    // Hours before core body temperature minimum
+  },
+  DELAY: {
+    MAX_SHIFT: 120,   // Maximum minutes to delay per day
+    OPTIMAL_START: 2,  // Hours after core body temperature minimum
+    OPTIMAL_END: 6     // Hours after core body temperature minimum
+  }
+};
+
+export const MELATONIN_ADJUSTMENT = {
+  ADVANCE: {
+    DAILY_SHIFT: 60,  // Minutes to advance per day
+    OPTIMAL_TIME: -5  // Hours before desired sleep time
+  },
+  DELAY: {
+    DAILY_SHIFT: 90,  // Minutes to delay per day
+    OPTIMAL_TIME: 2   // Hours after usual sleep time
+  }
+};
+
+export const LIGHT_EXPOSURE_RULES = {
+  ADVANCE: {
+    OPTIMAL_START: -6,    // Hours before core body temperature minimum
+    OPTIMAL_END: -2,      // Hours before core body temperature minimum
+    AVOID_START: 2,       // Hours after core body temperature minimum
+    AVOID_END: 6         // Hours after core body temperature minimum
+  },
+  DELAY: {
+    OPTIMAL_START: 2,     // Hours after core body temperature minimum
+    OPTIMAL_END: 6,       // Hours after core body temperature minimum
+    AVOID_START: -6,      // Hours before core body temperature minimum
+    AVOID_END: -2        // Hours before core body temperature minimum
+  }
+};
+
+export const MELATONIN_RULES = {
+  ADVANCE: {
+    OPTIMAL_TIME: -5,     // Hours before desired sleep time
+    DURATION: 0.5         // Hours to take effect
+  },
+  DELAY: {
+    OPTIMAL_TIME: 2,      // Hours after usual sleep time
+    DURATION: 0.5         // Hours to take effect
+  },
+  DOSAGE: {
+    MINIMUM: 0.5,         // mg
+    MAXIMUM: 5,           // mg
+    STANDARD: 3           // mg
+  }
+};
+
+export const MEAL_TIMING = {
+  BREAKFAST: {
+    EARLIEST: 'WAKE+30M',
+    LATEST: 'WAKE+2H'
+  },
+  LUNCH: {
+    WINDOW: 4  // hours around local noon
+  },
+  DINNER: {
+    EARLIEST: 'SUNSET-3H',
+    LATEST: 'BEDTIME-3H'
+  }
+};
+
+export type Direction = 'eastward' | 'westward';
+export type LightIntensity = 'no' | 'some' | 'full';
+
+export interface TimeWindow {
+  start: Date;
+  end: Date;
+  priority: ActivityPriority;
+  notes?: string;
+}
+
+export interface MealWindow extends TimeWindow {
+  type: 'breakfast' | 'lunch' | 'dinner';
+}
+
+export interface LightExposure extends TimeWindow {
+  type: 'bright' | 'avoid';
+  intensity?: number;
+}
+
+export interface CircadianSchedule {
+  activities: Activity[];
+  lightExposure: LightExposure[];
+  melatoninWindows: TimeWindow[];
+  caffeineWindows: TimeWindow[];
+  mealWindows: MealWindow[];
+  sleepWindows: TimeWindow[];
+}
+
+export interface Activity {
+  id: string;
+  type: ActivityType;
+  timeWindow: TimeWindow;
+  priority: ActivityPriority;
+  duration?: string;
+  notes?: string;
 } 

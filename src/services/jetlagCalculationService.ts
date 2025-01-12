@@ -1,19 +1,22 @@
+import { v4 as uuidv4 } from 'uuid';
 import {
-  Direction,
   TimeWindow,
   LightExposure,
   MealWindow,
   CircadianSchedule,
   AdaptationSchedule,
   JetlagSeverity,
+  ActivityType,
   ActivityPriority,
+  Activity,
+  Direction,
   CIRCADIAN_CONSTANTS,
   LIGHT_EXPOSURE_ADJUSTMENT,
   MELATONIN_ADJUSTMENT,
   LIGHT_EXPOSURE_RULES,
   MELATONIN_RULES,
   MEAL_TIMING
-} from '../types/circadian';
+} from '../types';
 
 export class JetlagCalculationService {
   /**
@@ -149,17 +152,69 @@ export class JetlagCalculationService {
     return baseFactor;
   }
 
-  private calculateTimezoneDifference(
-    originTz: string,
-    destTz: string
-  ): number {
-    const now = new Date();
-    const originOffset = new Date(now.toLocaleString('en-US', { timeZone: originTz }))
-      .getTimezoneOffset();
-    const destOffset = new Date(now.toLocaleString('en-US', { timeZone: destTz }))
-      .getTimezoneOffset();
+  private calculateTimezoneDifference(originTz: string, destTz: string): number {
+    try {
+      // Handle both IANA names and offset formats
+      const originOffset = this.getTimezoneOffset(originTz);
+      const destOffset = this.getTimezoneOffset(destTz);
+      
+      // Calculate difference in hours
+      return (destOffset - originOffset) / 60;
+    } catch (error) {
+      console.error(`Error calculating timezone difference: ${error}`);
+      throw new Error(`Invalid timezone format: ${originTz} or ${destTz}. Expected IANA timezone name or offset (+HH:mm/-HH:mm)`);
+    }
+  }
+
+  private getTimezoneOffset(timezone: string): number {
+    // If it's an offset format (+HH:mm or -HH:mm)
+    if (/^[+-]\d{2}:\d{2}$/.test(timezone)) {
+      const [hours, minutes] = timezone.substring(1).split(':').map(Number);
+      const totalMinutes = hours * 60 + minutes;
+      return timezone.startsWith('+') ? totalMinutes : -totalMinutes;
+    }
     
-    return (originOffset - destOffset) / 60; // Convert to hours
+    // If it's an IANA timezone name
+    try {
+      const date = new Date();
+      const tzDate = new Date(date.toLocaleString('en-US', { timeZone: timezone }));
+      const tzUtc = new Date(date.toLocaleString('en-US', { timeZone: 'UTC' }));
+      return (tzDate.getTime() - tzUtc.getTime()) / (60 * 1000);
+    } catch (error) {
+      throw new Error(`Invalid timezone: ${timezone}`);
+    }
+  }
+
+  private convertToLocalTime(date: Date, timezone: string): Date {
+    try {
+      // Handle both IANA names and offset formats
+      if (/^[+-]\d{2}:\d{2}$/.test(timezone)) {
+        const offsetMinutes = this.getTimezoneOffset(timezone);
+        const utc = new Date(date.getTime() + date.getTimezoneOffset() * 60 * 1000);
+        return new Date(utc.getTime() + offsetMinutes * 60 * 1000);
+      }
+      
+      return new Date(date.toLocaleString('en-US', { timeZone: timezone }));
+    } catch (error) {
+      console.error(`Error converting to local time: ${error}`);
+      throw new Error(`Invalid timezone: ${timezone}`);
+    }
+  }
+
+  private getIANATimezone(offset: string): string {
+    // Map common offsets to IANA timezone names
+    const timezoneMap: Record<string, string> = {
+      '+08:00': 'Asia/Taipei',
+      '-08:00': 'America/Vancouver',
+      '-05:00': 'America/Toronto',
+      '-03:00': 'America/Sao_Paulo',
+      '+00:00': 'UTC',
+      '+01:00': 'Europe/Paris',
+      '+09:00': 'Asia/Tokyo',
+      '+04:00': 'Asia/Dubai'
+    };
+
+    return timezoneMap[offset] || 'UTC';
   }
 
   private calculateDurationImpact(duration: number): number {
@@ -227,10 +282,8 @@ export class JetlagCalculationService {
       typicalSleepDuration?: number
     }
   ): CircadianSchedule {
-    const daysBeforeFlight = Math.min(Math.abs(timezoneDiff) / 2, 3);
-    const dailyShift = direction === 'eastward'
-      ? LIGHT_EXPOSURE_ADJUSTMENT.ADVANCE.MAX_SHIFT
-      : -LIGHT_EXPOSURE_ADJUSTMENT.DELAY.MAX_SHIFT;
+    const daysBeforeFlight = Math.min(3, Math.ceil(Math.abs(timezoneDiff) / 2));
+    const dailyShift = direction === 'eastward' ? 2 : -2;
 
     const sleepWindows = this.generatePreFlightSleepWindows(
       daysBeforeFlight,
@@ -250,93 +303,69 @@ export class JetlagCalculationService {
       ? this.generatePreFlightMelatonin(direction, daysBeforeFlight, departureTime)
       : [];
 
+    const caffeineWindows = this.generatePreFlightCaffeine(sleepWindows);
+    const mealWindows = this.generatePreFlightMeals(sleepWindows, direction);
+
+    // Ensure activities don't overlap by adjusting their start times
+    const activities: Activity[] = [];
+
+    // Add sleep windows first (highest priority)
+    activities.push(...sleepWindows.map(window => ({
+      id: uuidv4(),
+      type: ActivityType.SLEEP,
+      timeWindow: {
+        ...window,
+        duration: 480 // 8 hours in minutes
+      },
+      priority: ActivityPriority.HIGH,
+      notes: 'Primary sleep window - maintain darkness throughout'
+    })));
+
+    // Add light exposure windows with 2-hour duration
+    activities.push(...lightExposure.map(window => ({
+      id: uuidv4(),
+      type: window.type === 'bright' ? ActivityType.LIGHT_EXPOSURE : ActivityType.AVOID_LIGHT,
+      timeWindow: {
+        ...window,
+        duration: 120 // 2 hours in minutes for proper circadian entrainment
+      },
+      priority: window.priority,
+      notes: window.type === 'bright' 
+        ? 'Bright light exposure - can combine with morning activities'
+        : 'Avoid bright light - prepare for sleep'
+    })));
+
+    // Add melatonin with timing aligned to light avoidance
+    activities.push(...melatoninWindows.map(window => ({
+      id: uuidv4(),
+      type: ActivityType.MELATONIN,
+      timeWindow: {
+        ...window,
+        duration: 30 // 30 minutes for intake
+      },
+      priority: ActivityPriority.HIGH,
+      notes: 'Take melatonin while avoiding bright light'
+    })));
+
+    // Add meals with appropriate durations
+    activities.push(...mealWindows.map(window => ({
+      id: uuidv4(),
+      type: ActivityType.MEAL,
+      timeWindow: {
+        ...window,
+        duration: window.type === 'breakfast' ? 30 : 45 // 30min breakfast, 45min lunch/dinner
+      },
+      priority: ActivityPriority.MEDIUM,
+      notes: this.getMealNotes(window.type)
+    })));
+
     return {
+      activities,
       sleepWindows,
       lightExposure,
       melatoninWindows,
-      caffeineWindows: this.generatePreFlightCaffeine(sleepWindows),
-      mealWindows: this.generatePreFlightMeals(sleepWindows, direction)
-    };
-  }
-
-  private generateFlightSchedule(
-    duration: number,
-    direction: Direction,
-    departureTime: Date,
-    arrivalTime: Date,
-    layovers?: Array<{ duration: number }>,
-    userPreferences?: {
-      lightSensitivity?: 'low' | 'normal' | 'high',
-      canTakeMelatonin?: boolean
-    }
-  ): CircadianSchedule {
-    const sleepWindows = this.calculateOptimalFlightSleep(
-      duration,
-      direction,
-      departureTime,
-      arrivalTime,
-      layovers
-    );
-
-    const lightExposure = this.calculateFlightLightExposure(
-      direction,
-      departureTime,
-      arrivalTime,
-      userPreferences?.lightSensitivity
-    );
-
-    const melatoninWindows = userPreferences?.canTakeMelatonin !== false
-      ? this.calculateFlightMelatonin(direction, departureTime, arrivalTime)
-      : [];
-
-    return {
-      sleepWindows,
-      lightExposure,
-      melatoninWindows,
-      caffeineWindows: this.calculateFlightCaffeine(sleepWindows, duration),
-      mealWindows: this.calculateFlightMeals(duration, direction, departureTime, arrivalTime)
-    };
-  }
-
-  private generatePostFlightSchedule(
-    direction: Direction,
-    timezoneDiff: number,
-    arrivalTime: Date,
-    userPreferences?: {
-      chronotype?: 'early' | 'normal' | 'late',
-      lightSensitivity?: 'low' | 'normal' | 'high',
-      canTakeMelatonin?: boolean,
-      typicalSleepDuration?: number
-    }
-  ): CircadianSchedule {
-    const adjustmentDays = Math.ceil(
-      Math.abs(timezoneDiff) / CIRCADIAN_CONSTANTS.AVERAGE_ADJUSTMENT_RATE
-    );
-
-    const sleepWindows = this.generatePostFlightSleepWindows(
-      direction,
-      adjustmentDays,
-      arrivalTime,
-      userPreferences?.typicalSleepDuration
-    );
-
-    const lightExposure = this.generatePostFlightLightExposure(
-      direction,
-      adjustmentDays,
-      arrivalTime,
-      userPreferences?.lightSensitivity
-    );
-
-    const melatoninWindows = userPreferences?.canTakeMelatonin !== false
-      ? this.generatePostFlightMelatonin(direction, adjustmentDays, arrivalTime)
-      : [];
-
-    return {
-      sleepWindows,
-      lightExposure,
-      melatoninWindows,
-      caffeineWindows: this.generatePostFlightCaffeine(sleepWindows),
-      mealWindows: this.generatePostFlightMeals(sleepWindows, direction)
+      caffeineWindows,
+      mealWindows
     };
   }
 
@@ -477,42 +506,205 @@ export class JetlagCalculationService {
   private generatePreFlightMeals(sleepWindows: TimeWindow[], direction: Direction): MealWindow[] {
     const meals: MealWindow[] = [];
 
-    sleepWindows.forEach(window => {
-      const date = new Date(window.start);
+    sleepWindows.forEach((window, index) => {
+      const wakeTime = window.end;
+      const bedTime = window.start;
       
-      // Breakfast: 30 minutes after wake
-      const breakfastTime = new Date(window.end);
+      // Breakfast: 30-120 minutes after wake time (per MEAL_TIMING.BREAKFAST rules)
+      const breakfastTime = new Date(wakeTime);
+      breakfastTime.setMinutes(breakfastTime.getMinutes() + 30);
+      
+      // Ensure breakfast doesn't conflict with light exposure
       meals.push({
         start: breakfastTime,
         end: new Date(breakfastTime.getTime() + 30 * 60 * 1000),
         priority: ActivityPriority.MEDIUM,
         type: 'breakfast',
-        notes: 'Breakfast'
+        notes: `Breakfast - Day ${index + 1} (30-120min after wake)`
       });
 
-      // Lunch: middle of the day
-      const lunchTime = new Date(date.setHours(13, 0, 0, 0));
+      // Lunch: 4-hour window around solar noon (per MEAL_TIMING.LUNCH rules)
+      const solarNoon = new Date(wakeTime);
+      solarNoon.setHours(12, 0, 0, 0);
+      const lunchTime = new Date(solarNoon);
+      // Adjust lunch based on direction to help with adaptation
+      lunchTime.setHours(direction === 'eastward' ? 11 : 13, 0, 0, 0);
+      
       meals.push({
         start: lunchTime,
         end: new Date(lunchTime.getTime() + 45 * 60 * 1000),
         priority: ActivityPriority.MEDIUM,
         type: 'lunch',
-        notes: 'Lunch'
+        notes: `Lunch - Day ${index + 1} (aligned with solar noon)`
       });
 
-      // Dinner: adjusted based on direction
-      const dinnerTime = new Date(date);
-      dinnerTime.setHours(direction === 'eastward' ? 18 : 19, 0, 0, 0);
+      // Dinner: 3 hours before bedtime (per MEAL_TIMING.DINNER rules)
+      const dinnerTime = new Date(bedTime);
+      dinnerTime.setHours(dinnerTime.getHours() - 3);
+      
       meals.push({
         start: dinnerTime,
         end: new Date(dinnerTime.getTime() + 45 * 60 * 1000),
         priority: ActivityPriority.MEDIUM,
         type: 'dinner',
-        notes: 'Dinner'
+        notes: `Dinner - Day ${index + 1} (3h before bed)`
       });
     });
 
     return meals;
+  }
+
+  private generateFlightSchedule(
+    duration: number,
+    direction: Direction,
+    departureTime: Date,
+    arrivalTime: Date,
+    layovers?: Array<{ duration: number }>,
+    userPreferences?: {
+      lightSensitivity?: 'low' | 'normal' | 'high',
+      canTakeMelatonin?: boolean
+    }
+  ): CircadianSchedule {
+    const sleepWindows = this.calculateOptimalFlightSleep(
+      duration,
+      direction,
+      departureTime,
+      arrivalTime,
+      layovers
+    );
+
+    const lightExposure = this.calculateFlightLightExposure(
+      direction,
+      departureTime,
+      arrivalTime,
+      userPreferences?.lightSensitivity
+    );
+
+    const melatoninWindows = userPreferences?.canTakeMelatonin !== false
+      ? this.calculateFlightMelatonin(direction, departureTime, arrivalTime)
+      : [];
+
+    const caffeineWindows = this.calculateFlightCaffeine(sleepWindows, duration);
+    const mealWindows = this.calculateFlightMeals(duration, direction, departureTime, arrivalTime);
+
+    // Combine all activities
+    const activities: Activity[] = [
+      ...sleepWindows.map(window => ({
+        id: uuidv4(),
+        type: ActivityType.SLEEP,
+        timeWindow: window,
+        priority: window.priority,
+        notes: window.notes
+      })),
+      ...lightExposure.map(window => ({
+        id: uuidv4(),
+        type: window.type === 'bright' ? ActivityType.LIGHT_EXPOSURE : ActivityType.AVOID_LIGHT,
+        timeWindow: window,
+        priority: window.priority,
+        notes: window.notes
+      })),
+      ...melatoninWindows.map(window => ({
+        id: uuidv4(),
+        type: ActivityType.MELATONIN,
+        timeWindow: window,
+        priority: window.priority,
+        notes: window.notes
+      })),
+      ...mealWindows.map(window => ({
+        id: uuidv4(),
+        type: ActivityType.MEAL,
+        timeWindow: window,
+        priority: window.priority,
+        notes: window.notes
+      }))
+    ];
+
+    return {
+      activities,
+      sleepWindows,
+      lightExposure,
+      melatoninWindows,
+      caffeineWindows,
+      mealWindows
+    };
+  }
+
+  private generatePostFlightSchedule(
+    direction: Direction,
+    timezoneDiff: number,
+    arrivalTime: Date,
+    userPreferences?: {
+      chronotype?: 'early' | 'normal' | 'late',
+      lightSensitivity?: 'low' | 'normal' | 'high',
+      canTakeMelatonin?: boolean,
+      typicalSleepDuration?: number
+    }
+  ): CircadianSchedule {
+    const adjustmentDays = Math.ceil(
+      Math.abs(timezoneDiff) / CIRCADIAN_CONSTANTS.AVERAGE_ADJUSTMENT_RATE
+    );
+
+    const sleepWindows = this.generatePostFlightSleepWindows(
+      direction,
+      adjustmentDays,
+      arrivalTime,
+      userPreferences?.typicalSleepDuration
+    );
+
+    const lightExposure = this.generatePostFlightLightExposure(
+      direction,
+      adjustmentDays,
+      arrivalTime,
+      userPreferences?.lightSensitivity
+    );
+
+    const melatoninWindows = userPreferences?.canTakeMelatonin !== false
+      ? this.generatePostFlightMelatonin(direction, adjustmentDays, arrivalTime)
+      : [];
+
+    const caffeineWindows = this.generatePostFlightCaffeine(sleepWindows);
+    const mealWindows = this.generatePostFlightMeals(sleepWindows, direction);
+
+    // Combine all activities
+    const activities: Activity[] = [
+      ...sleepWindows.map(window => ({
+        id: uuidv4(),
+        type: ActivityType.SLEEP,
+        timeWindow: window,
+        priority: window.priority,
+        notes: window.notes
+      })),
+      ...lightExposure.map(window => ({
+        id: uuidv4(),
+        type: window.type === 'bright' ? ActivityType.LIGHT_EXPOSURE : ActivityType.AVOID_LIGHT,
+        timeWindow: window,
+        priority: window.priority,
+        notes: window.notes
+      })),
+      ...melatoninWindows.map(window => ({
+        id: uuidv4(),
+        type: ActivityType.MELATONIN,
+        timeWindow: window,
+        priority: window.priority,
+        notes: window.notes
+      })),
+      ...mealWindows.map(window => ({
+        id: uuidv4(),
+        type: ActivityType.MEAL,
+        timeWindow: window,
+        priority: window.priority,
+        notes: window.notes
+      }))
+    ];
+
+    return {
+      activities,
+      sleepWindows,
+      lightExposure,
+      melatoninWindows,
+      caffeineWindows,
+      mealWindows
+    };
   }
 
   private calculateOptimalFlightSleep(
@@ -665,40 +857,59 @@ export class JetlagCalculationService {
     const mealDuration = 45 * 60 * 1000; // 45 minutes for each meal
 
     if (duration > 4) { // Only suggest meals for longer flights
-      const flightMidpoint = new Date((departureTime.getTime() + arrivalTime.getTime()) / 2);
+        // First meal: Align with destination breakfast time if morning arrival
+        const destinationTime = new Date(arrivalTime);
+        const arrivalHour = destinationTime.getHours();
+        const isBreakfastTime = arrivalHour >= 6 && arrivalHour <= 10;
 
-      // First meal
-      const firstMealTime = new Date(departureTime);
-      firstMealTime.setHours(firstMealTime.getHours() + 1);
-      meals.push({
-        start: firstMealTime,
-        end: new Date(firstMealTime.getTime() + mealDuration),
-        priority: ActivityPriority.MEDIUM,
-        type: 'breakfast',
-        notes: 'First in-flight meal'
-      });
+        if (isBreakfastTime) {
+            // Schedule last meal as breakfast close to arrival
+            const breakfastTime = new Date(arrivalTime);
+            breakfastTime.setHours(breakfastTime.getHours() - 1);
+            meals.push({
+                start: breakfastTime,
+                end: new Date(breakfastTime.getTime() + mealDuration),
+                priority: ActivityPriority.MEDIUM,
+                type: 'breakfast',
+                notes: 'Pre-arrival breakfast (helps with adaptation)'
+            });
+        } else {
+            // Regular meal pattern
+            const firstMealTime = new Date(departureTime);
+            firstMealTime.setHours(firstMealTime.getHours() + 2);
+            meals.push({
+                start: firstMealTime,
+                end: new Date(firstMealTime.getTime() + mealDuration),
+                priority: ActivityPriority.MEDIUM,
+                type: direction === 'eastward' ? 'breakfast' : 'dinner',
+                notes: 'First in-flight meal'
+            });
+        }
 
-      // Mid-flight meal for long flights
-      if (duration > 8) {
-        meals.push({
-          start: flightMidpoint,
-          end: new Date(flightMidpoint.getTime() + mealDuration),
-          priority: ActivityPriority.MEDIUM,
-          type: 'lunch',
-          notes: 'Mid-flight meal'
-        });
-      }
+        // Optional mid-flight meal for long flights
+        if (duration > 8) {
+            const midFlightTime = new Date((departureTime.getTime() + arrivalTime.getTime()) / 2);
+            meals.push({
+                start: midFlightTime,
+                end: new Date(midFlightTime.getTime() + mealDuration),
+                priority: ActivityPriority.LOW, // Lower priority for optional meal
+                type: 'lunch',
+                notes: 'Optional mid-flight meal (if hungry)'
+            });
+        }
 
-      // Last meal
-      const lastMealTime = new Date(arrivalTime);
-      lastMealTime.setHours(lastMealTime.getHours() - 2);
-      meals.push({
-        start: lastMealTime,
-        end: new Date(lastMealTime.getTime() + mealDuration),
-        priority: ActivityPriority.MEDIUM,
-        type: 'dinner',
-        notes: 'Pre-arrival meal'
-      });
+        // Last meal timing based on arrival time
+        if (!isBreakfastTime) {
+            const lastMealTime = new Date(arrivalTime);
+            lastMealTime.setHours(lastMealTime.getHours() - 2);
+            meals.push({
+                start: lastMealTime,
+                end: new Date(lastMealTime.getTime() + mealDuration),
+                priority: ActivityPriority.MEDIUM,
+                type: direction === 'eastward' ? 'dinner' : 'breakfast',
+                notes: 'Pre-arrival meal (aligned with destination time)'
+            });
+        }
     }
 
     return meals;
@@ -849,40 +1060,60 @@ export class JetlagCalculationService {
     const meals: MealWindow[] = [];
 
     sleepWindows.forEach((window, index) => {
-      const date = new Date(window.start);
-      
-      // Breakfast: 30 minutes after wake
-      const breakfastTime = new Date(window.end);
-      meals.push({
-        start: breakfastTime,
-        end: new Date(breakfastTime.getTime() + 30 * 60 * 1000),
-        priority: ActivityPriority.MEDIUM,
-        type: 'breakfast',
-        notes: `Breakfast - Day ${index + 1}`
-      });
+        const wakeTime = window.end;
+        const bedTime = window.start;
+        
+        // Breakfast: Strictly 30 minutes after wake time to establish rhythm
+        const breakfastTime = new Date(wakeTime);
+        breakfastTime.setMinutes(breakfastTime.getMinutes() + 30);
+        
+        meals.push({
+            start: breakfastTime,
+            end: new Date(breakfastTime.getTime() + 30 * 60 * 1000),
+            priority: ActivityPriority.MEDIUM,
+            type: 'breakfast',
+            notes: `Breakfast - Day ${index + 1} (helps establish new rhythm)`
+        });
 
-      // Lunch: middle of the day
-      const lunchTime = new Date(date.setHours(13, 0, 0, 0));
-      meals.push({
-        start: lunchTime,
-        end: new Date(lunchTime.getTime() + 45 * 60 * 1000),
-        priority: ActivityPriority.MEDIUM,
-        type: 'lunch',
-        notes: `Lunch - Day ${index + 1}`
-      });
+        // Lunch: Align with destination solar noon
+        const solarNoon = new Date(wakeTime);
+        solarNoon.setHours(12, 0, 0, 0);
+        const lunchTime = new Date(solarNoon);
+        
+        meals.push({
+            start: lunchTime,
+            end: new Date(lunchTime.getTime() + 45 * 60 * 1000),
+            priority: ActivityPriority.MEDIUM,
+            type: 'lunch',
+            notes: `Lunch - Day ${index + 1} (aligned with local time)`
+        });
 
-      // Dinner: adjusted based on direction
-      const dinnerTime = new Date(date);
-      dinnerTime.setHours(direction === 'eastward' ? 18 : 19, 0, 0, 0);
-      meals.push({
-        start: dinnerTime,
-        end: new Date(dinnerTime.getTime() + 45 * 60 * 1000),
-        priority: ActivityPriority.MEDIUM,
-        type: 'dinner',
-        notes: `Dinner - Day ${index + 1}`
-      });
+        // Dinner: Strictly 3 hours before bed to support natural melatonin
+        const dinnerTime = new Date(bedTime);
+        dinnerTime.setHours(dinnerTime.getHours() - 3);
+        
+        meals.push({
+            start: dinnerTime,
+            end: new Date(dinnerTime.getTime() + 45 * 60 * 1000),
+            priority: ActivityPriority.MEDIUM,
+            type: 'dinner',
+            notes: `Dinner - Day ${index + 1} (supports natural melatonin production)`
+        });
     });
 
     return meals;
+  }
+
+  private getMealNotes(type: string): string {
+    switch (type) {
+      case 'breakfast':
+        return 'Breakfast - can overlap with morning light exposure';
+      case 'lunch':
+        return 'Lunch - maintain consistent solar noon timing';
+      case 'dinner':
+        return 'Dinner - complete 3h before sleep, during light avoidance';
+      default:
+        return 'Meal timing aligned with circadian rhythm';
+    }
   }
 } 

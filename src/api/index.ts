@@ -2,6 +2,7 @@ import express from 'express';
 import type { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import { FlightService } from '../services/flightService';
+import { JetlagCalculationService } from '../services/jetlagCalculationService';
 
 const app = express();
 const flightService = new FlightService();
@@ -76,13 +77,31 @@ app.get('/api/weather', (req: Request, res: Response) => {
 });
 
 // Flight search endpoint
-app.post('/api/flights/search', async (req: Request, res: Response, next: NextFunction) => {
+app.post('/api/flights/search', async (req: Request, res: Response) => {
   try {
-    const { origin, destination, date } = req.body;
-    const flights = await flightService.searchFlights(origin, destination, date);
+    const { carrierCode, flightNumber, scheduledDepartureDate, segmentChoice } = req.body;
+    
+    if (!carrierCode || !flightNumber || !scheduledDepartureDate) {
+      return res.status(400).json({ 
+        error: 'Missing required parameters',
+        message: 'Please provide carrierCode, flightNumber, and scheduledDepartureDate'
+      });
+    }
+
+    const flights = await flightService.searchFlights(
+      carrierCode,
+      flightNumber,
+      scheduledDepartureDate,
+      segmentChoice || 'full'
+    );
     res.json(flights);
-  } catch (error) {
-    next(error);
+  } catch (error: any) {
+    console.error('Error details:', error);
+    res.status(500).json({
+      error: 'Something went wrong!',
+      message: error.message,
+      type: error.name
+    });
   }
 });
 
@@ -102,30 +121,110 @@ app.get('/api/airports/search', async (req: Request, res: Response, next: NextFu
 
 // Jetlag endpoint
 app.post('/api/jetlag', (req: Request, res: Response) => {
-  const { flight, phase } = req.body;
-  
-  // Mock schedule response for testing
-  res.json({
-    flight,
-    phase,
-    schedule: [
-      {
-        time: '08:00',
-        activity: 'Light exposure',
-        duration: '30 minutes'
+  try {
+    const { flight, phase } = req.body;
+    const jetlagService = new JetlagCalculationService();
+    
+    // Convert timezone offsets to IANA names
+    const originTimezone = offsetToIANA(flight.originTimezone);
+    const destinationTimezone = offsetToIANA(flight.destinationTimezone);
+    
+    const adaptationSchedule = jetlagService.calculateJetlagAdaptation({
+      origin: { timezone: originTimezone },
+      destination: { timezone: destinationTimezone },
+      departureTime: new Date(flight.departure),
+      arrivalTime: new Date(flight.arrival),
+      duration: flight.duration,
+      layovers: flight.layovers
+    }, {
+      chronotype: 'normal',
+      lightSensitivity: 'normal',
+      caffeineMetabolism: 'normal',
+      canTakeMelatonin: true
+    });
+
+    // Return the appropriate phase of the schedule
+    let schedule;
+    switch (phase) {
+      case 'departure':
+        schedule = adaptationSchedule.preFlight;
+        break;
+      case 'inflight':
+        schedule = adaptationSchedule.inFlight;
+        break;
+      case 'arrival':
+        schedule = adaptationSchedule.postFlight;
+        break;
+      default:
+        schedule = adaptationSchedule.preFlight;
+    }
+
+    res.json({
+      flight: {
+        ...flight,
+        originTimezone,
+        destinationTimezone
       },
-      {
-        time: '12:00',
-        activity: 'Meal',
-        description: 'Light lunch'
-      }
-    ],
-    recommendations: [
-      'Avoid caffeine after 2 PM',
-      'Get morning sunlight'
-    ]
-  });
+      phase,
+      severity: adaptationSchedule.severity,
+      schedule: schedule.activities.map(activity => ({
+        time: formatTime(activity.timeWindow.start),
+        activity: activity.type,
+        duration: activity.duration || '30 minutes',
+        description: activity.notes
+      })),
+      recommendations: [
+        ...schedule.lightExposure.map(light => 
+          `${light.type === 'bright' ? 'Seek' : 'Avoid'} bright light from ${formatTime(light.start)} to ${formatTime(light.end)}`
+        ),
+        ...schedule.melatoninWindows.map(window => 
+          `Take melatonin at ${formatTime(window.start)}`
+        ),
+        ...schedule.caffeineWindows.map(window => 
+          `Avoid caffeine after ${formatTime(window.end)}`
+        ),
+        ...schedule.mealWindows.map(window => 
+          `Eat meals between ${formatTime(window.start)} and ${formatTime(window.end)}`
+        )
+      ]
+    });
+  } catch (error) {
+    console.error('Error calculating jetlag schedule:', error);
+    res.status(500).json({ 
+      error: 'Failed to calculate jetlag schedule',
+      message: error.message 
+    });
+  }
 });
+
+// Helper function to format time
+function formatTime(date: Date): string {
+  return date.toLocaleTimeString('en-US', { 
+    hour: '2-digit', 
+    minute: '2-digit',
+    hour12: true 
+  });
+}
+
+// Helper function to convert timezone offset to IANA name
+function offsetToIANA(offset: string): string {
+  const timezoneMap: Record<string, string> = {
+    '+08:00': 'Asia/Taipei',
+    '-08:00': 'America/Vancouver',
+    '-05:00': 'America/Toronto',
+    '-03:00': 'America/Sao_Paulo',
+    '+00:00': 'UTC',
+    '+01:00': 'Europe/Paris',
+    '+09:00': 'Asia/Tokyo',
+    '+04:00': 'Asia/Dubai'
+  };
+
+  const timezone = timezoneMap[offset];
+  if (!timezone) {
+    throw new Error(`Invalid timezone offset: ${offset}`);
+  }
+  return timezone;
+}
 
 // Error handling
 app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
