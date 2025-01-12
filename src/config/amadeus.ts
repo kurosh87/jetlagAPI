@@ -1,5 +1,7 @@
 import Amadeus from 'amadeus';
 import dotenv from 'dotenv';
+import axios from 'axios';
+import https from 'https';
 
 dotenv.config();
 
@@ -16,6 +18,13 @@ console.log('Amadeus Configuration:', {
   apiSecretLength: apiSecret?.length || 0,
   apiSecretFirstChars: apiSecret ? `${apiSecret.substring(0, 4)}...` : 'none'
 });
+
+// Configure global axios defaults for HTTPS
+const httpsAgent = new https.Agent({
+  rejectUnauthorized: false
+});
+
+axios.defaults.httpsAgent = httpsAgent;
 
 export const amadeus = new Amadeus({
   clientId: apiKey,
