@@ -9,10 +9,19 @@ if (process.env.NODE_ENV !== 'production') {
 } else {
   // In production, read from /etc/secrets
   try {
-    const amadeusKey = fs.readFileSync('/etc/secrets/AMADEUS_API_KEY', 'utf8').trim();
-    const amadeusSecret = fs.readFileSync('/etc/secrets/AMADEUS_API_SECRET', 'utf8').trim();
-    process.env.AMADEUS_API_KEY = amadeusKey;
-    process.env.AMADEUS_API_SECRET = amadeusSecret;
+    const secretFiles = [
+      'AMADEUS_API_KEY',
+      'AMADEUS_API_SECRET',
+      'FIREBASE_PROJECT_ID',
+      'FIREBASE_STORAGE_BUCKET',
+      'FIREBASE_EMULATOR'
+    ];
+    
+    for (const secretName of secretFiles) {
+      const secretValue = fs.readFileSync(`/etc/secrets/${secretName}`, 'utf8').trim();
+      process.env[secretName] = secretValue;
+      console.log(`Loaded secret: ${secretName}`);
+    }
   } catch (error) {
     console.error('Error reading secrets:', error);
   }
