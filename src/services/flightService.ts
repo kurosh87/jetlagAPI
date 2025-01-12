@@ -6,17 +6,29 @@ import path from 'path';
 // Load environment variables
 if (process.env.NODE_ENV === 'production') {
   // In production, read from /etc/secrets
-  try {
-    const secretFiles = ['AMADEUS_API_KEY', 'AMADEUS_API_SECRET'];
-    secretFiles.forEach(file => {
-      const filePath = `/etc/secrets/${file}`;
+  const secretFiles = [
+    'AMADEUS_API_KEY',
+    'AMADEUS_API_SECRET',
+    'NODE_ENV',
+    'PORT',
+    'FIREBASE_PROJECT_ID',
+    'FIREBASE_STORAGE_BUCKET',
+    'FIREBASE_EMULATOR'
+  ];
+
+  secretFiles.forEach(file => {
+    const filePath = `/etc/secrets/${file}`;
+    try {
       if (fs.existsSync(filePath)) {
         process.env[file] = fs.readFileSync(filePath, 'utf8').trim();
+        console.log(`Loaded secret: ${file}`);
+      } else {
+        console.warn(`Secret file not found: ${file}`);
       }
-    });
-  } catch (error) {
-    console.error('Error reading secret files:', error);
-  }
+    } catch (error) {
+      console.error(`Error reading secret file ${file}:`, error);
+    }
+  });
 } else {
   // In development, use dotenv
   dotenv.config();
@@ -40,6 +52,8 @@ export class FlightService {
     // Log environment for debugging (without sensitive data)
     console.log('Environment:', {
       NODE_ENV: process.env.NODE_ENV,
+      PORT: process.env.PORT,
+      FIREBASE_EMULATOR: process.env.FIREBASE_EMULATOR,
       AMADEUS_CONFIGURED: !!process.env.AMADEUS_API_KEY && !!process.env.AMADEUS_API_SECRET
     });
   }
