@@ -1,13 +1,56 @@
-import { amadeus } from '../config/amadeus';
+import axios from 'axios';
 import { Flight, Airport } from '../types';
 
+const API_BASE = 'https://api.amadeus.com/v1';
+const AUTH_URL = 'https://api.amadeus.com/v1/security/oauth2/token';
+
 export class FlightService {
+  private accessToken: string | null = null;
+
   private async getAccessToken(): Promise<string> {
     try {
-      const response = await amadeus.authenticate();
-      return response.result.access_token;
+      const response = await axios.post(AUTH_URL, 
+        'grant_type=client_credentials&client_id=5v4qAUOvNrAE0DKEvHFi9On5KM4c5mD1&client_secret=mvoeMRpVhsIAxseJ',
+        {
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded'
+          }
+        }
+      );
+
+      this.accessToken = response.data.access_token;
+      return this.accessToken;
     } catch (error) {
       console.error('Error getting access token:', error);
+      throw error;
+    }
+  }
+
+  private async makeRequest(url: string, params: any = {}): Promise<any> {
+    if (!this.accessToken) {
+      await this.getAccessToken();
+    }
+
+    try {
+      const response = await axios.get(url, {
+        headers: {
+          Authorization: `Bearer ${this.accessToken}`
+        },
+        params
+      });
+      return response.data;
+    } catch (error: any) {
+      if (error.response?.status === 401) {
+        // Token expired, get new one and retry
+        await this.getAccessToken();
+        const response = await axios.get(url, {
+          headers: {
+            Authorization: `Bearer ${this.accessToken}`
+          },
+          params
+        });
+        return response.data;
+      }
       throw error;
     }
   }
@@ -23,10 +66,7 @@ export class FlightService {
     try {
       console.log('Searching flights with params:', { originCode, destinationCode, departureDate });
       
-      // Get fresh access token
-      await this.getAccessToken();
-      
-      const response = await amadeus.shopping.flightOffersSearch.get({
+      const response = await this.makeRequest(`${API_BASE}/shopping/flight-offers`, {
         originLocationCode: originCode,
         destinationLocationCode: destinationCode,
         departureDate,
@@ -35,7 +75,6 @@ export class FlightService {
       });
 
       console.log('Amadeus response:', {
-        status: response.statusCode,
         hasData: !!response.data,
         dataLength: response.data?.length
       });
@@ -44,49 +83,7 @@ export class FlightService {
     } catch (error: any) {
       console.error('Error searching flights:', {
         message: error.message,
-        code: error.code,
-        status: error.status,
-        description: error.description,
-        response: error.response?.body,
-        stack: error.stack
-      });
-      throw error;
-    }
-  }
-
-  /**
-   * Get airport information by IATA code
-   */
-  public async getAirportInfo(iataCode: string): Promise<Airport> {
-    try {
-      console.log('Getting airport info for:', iataCode);
-      
-      // Get fresh access token
-      await this.getAccessToken();
-      
-      const response = await amadeus.referenceData.locations.get({
-        keyword: iataCode,
-        subType: 'AIRPORT'
-      });
-
-      console.log('Amadeus airport response:', {
-        status: response.statusCode,
-        hasData: !!response.data,
-        dataLength: response.data?.length
-      });
-
-      if (response.data.length === 0) {
-        throw new Error(`Airport with code ${iataCode} not found`);
-      }
-
-      return this.mapAmadeusAirportToAirport(response.data[0]);
-    } catch (error: any) {
-      console.error('Error fetching airport info:', {
-        message: error.message,
-        code: error.code,
-        status: error.status,
-        description: error.description,
-        response: error.response?.body,
+        response: error.response?.data,
         stack: error.stack
       });
       throw error;
@@ -100,16 +97,12 @@ export class FlightService {
     try {
       console.log('Searching airports with keyword:', keyword);
       
-      // Get fresh access token
-      await this.getAccessToken();
-      
-      const response = await amadeus.referenceData.locations.get({
+      const response = await this.makeRequest(`${API_BASE}/reference-data/locations`, {
         keyword,
         subType: 'AIRPORT'
       });
 
       console.log('Amadeus airports response:', {
-        status: response.statusCode,
         hasData: !!response.data,
         dataLength: response.data?.length
       });
@@ -118,34 +111,9 @@ export class FlightService {
     } catch (error: any) {
       console.error('Error searching airports:', {
         message: error.message,
-        code: error.code,
-        status: error.status,
-        description: error.description,
-        response: error.response?.body,
+        response: error.response?.data,
         stack: error.stack
       });
-      throw error;
-    }
-  }
-
-  /**
-   * Get flight schedule
-   */
-  public async getFlightSchedule(
-    carrierCode: string,
-    flightNumber: string,
-    scheduledDepartureDate: string
-  ): Promise<any> {
-    try {
-      const response = await amadeus.schedule.flights.get({
-        carrierCode,
-        flightNumber,
-        scheduledDepartureDate
-      });
-
-      return response.data;
-    } catch (error) {
-      console.error('Error fetching flight schedule:', error);
       throw error;
     }
   }
