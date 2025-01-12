@@ -4,6 +4,22 @@ import cors from 'cors';
 import { FlightService } from '../services/flightService';
 import { JetlagCalculationService } from '../services/jetlagCalculationService';
 
+// Log environment variables on startup
+console.log('Available environment variables:', Object.keys(process.env).filter(key => 
+  !key.includes('KEY') && 
+  !key.includes('SECRET') && 
+  !key.includes('PASSWORD')
+).reduce((acc: Record<string, string>, key: string) => {
+  acc[key] = process.env[key] || '';
+  return acc;
+}, {}));
+
+console.log('Credential check:', {
+  AMADEUS_API_KEY_EXISTS: !!process.env.AMADEUS_API_KEY,
+  AMADEUS_API_SECRET_EXISTS: !!process.env.AMADEUS_API_SECRET,
+  NODE_ENV: process.env.NODE_ENV
+});
+
 const app = express();
 const flightService = new FlightService();
 
