@@ -4,7 +4,7 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 export class FlightService {
-  private baseUrl = 'https://api.amadeus.com/v2';
+  private baseUrl = 'https://api.amadeus.com/v1';
   private accessToken: string | null = null;
   private tokenExpiry: Date | null = null;
 
@@ -23,33 +23,39 @@ export class FlightService {
       throw new Error('Amadeus API credentials not configured');
     }
 
-    const formData = new URLSearchParams({
-      'grant_type': 'client_credentials',
-      'client_id': apiKey,
-      'client_secret': apiSecret
-    }).toString();
+    try {
+      const formData = new URLSearchParams({
+        'grant_type': 'client_credentials',
+        'client_id': apiKey.trim(),
+        'client_secret': apiSecret.trim()
+      }).toString();
 
-    const response = await fetch('https://api.amadeus.com/v1/security/oauth2/token', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-      },
-      body: formData,
-    });
-
-    if (!response.ok) {
-      const errorData = await response.text();
-      console.error('Token request failed:', {
-        status: response.status,
-        statusText: response.statusText
+      const response = await fetch('https://test.api.amadeus.com/v1/security/oauth2/token', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: formData,
       });
-      throw new Error(`Failed to get access token: ${response.statusText}`);
-    }
 
-    const data = await response.json();
-    this.accessToken = data.access_token;
-    this.tokenExpiry = new Date(Date.now() + data.expires_in * 1000);
-    return this.accessToken;
+      if (!response.ok) {
+        const errorData = await response.text();
+        console.error('Token request failed:', {
+          status: response.status,
+          statusText: response.statusText,
+          error: errorData
+        });
+        throw new Error(`Failed to get access token: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      this.accessToken = data.access_token;
+      this.tokenExpiry = new Date(Date.now() + data.expires_in * 1000);
+      return this.accessToken;
+    } catch (error) {
+      console.error('Error getting access token:', error);
+      throw error;
+    }
   }
 
   /**
