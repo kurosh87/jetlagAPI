@@ -12,13 +12,7 @@ export class FlightService {
   private tokenExpiry: Date | null = null;
 
   constructor() {
-    // Verify Amadeus credentials
-    const apiKey = process.env.AMADEUS_API_KEY?.trim();
-    const apiSecret = process.env.AMADEUS_API_SECRET?.trim();
-    
-    if (!apiKey || !apiSecret) {
-      throw new Error('Amadeus API credentials missing');
-    }
+    // No validation in constructor - let the API methods handle it
   }
 
   /**
@@ -33,7 +27,7 @@ export class FlightService {
     const apiSecret = process.env.AMADEUS_API_SECRET?.trim();
 
     if (!apiKey || !apiSecret) {
-      throw new Error('Amadeus API credentials missing');
+      throw new Error('Amadeus API credentials required for this operation');
     }
 
     try {
