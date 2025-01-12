@@ -30,5 +30,6 @@ if (!apiKey || !apiSecret) {
 
 export const amadeus = new Amadeus({
   clientId: apiKey,
-  clientSecret: apiSecret
+  clientSecret: apiSecret,
+  hostname: 'test.api.amadeus.com' // Force test environment
 }); 
