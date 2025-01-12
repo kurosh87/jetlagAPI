@@ -137,13 +137,15 @@ app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
   
   // If it's an Amadeus API error, it might have additional details
   const amadeusError = err as any;
-  if (amadeusError.code || amadeusError.status) {
-    return res.status(500).json({
+  if (amadeusError.response?.body || amadeusError.code || amadeusError.status) {
+    return res.status(amadeusError.status || 500).json({
       error: 'API Error',
       details: {
         message: amadeusError.message,
         code: amadeusError.code,
-        status: amadeusError.status
+        status: amadeusError.status,
+        description: amadeusError.description,
+        response: amadeusError.response?.body
       }
     });
   }

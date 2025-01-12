@@ -27,11 +27,13 @@ export class FlightService {
       });
 
       return this.mapAmadeusFlightsToFlights(response.data);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error searching flights:', {
-        error: error.message,
+        message: error.message,
         code: error.code,
         status: error.status,
+        description: error.description,
+        response: error.response?.body,
         stack: error.stack
       });
       throw error;
@@ -60,11 +62,13 @@ export class FlightService {
       }
 
       return this.mapAmadeusAirportToAirport(response.data[0]);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error fetching airport info:', {
-        error: error.message,
+        message: error.message,
         code: error.code,
         status: error.status,
+        description: error.description,
+        response: error.response?.body,
         stack: error.stack
       });
       throw error;
@@ -89,11 +93,13 @@ export class FlightService {
       });
 
       return response.data.map(this.mapAmadeusAirportToAirport);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error searching airports:', {
-        error: error.message,
+        message: error.message,
         code: error.code,
         status: error.status,
+        description: error.description,
+        response: error.response?.body,
         stack: error.stack
       });
       throw error;
