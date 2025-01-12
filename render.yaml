@@ -7,5 +7,11 @@ services:
     envVars:
       - key: NODE_ENV
         value: production
-    healthCheckPath: /api
+      - key: PORT
+        value: "10000"
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /
+    healthCheckPath: /
     autoDeploy: true 
