@@ -17,13 +17,20 @@ if (process.env.NODE_ENV !== 'production') {
       'FIREBASE_EMULATOR'
     ];
     
+    console.log('Running in production mode, attempting to read secrets from /etc/secrets');
     for (const secretName of secretFiles) {
-      const secretValue = fs.readFileSync(`/etc/secrets/${secretName}`, 'utf8').trim();
-      process.env[secretName] = secretValue;
-      console.log(`Loaded secret: ${secretName}`);
+      const secretPath = `/etc/secrets/${secretName}`;
+      console.log(`Attempting to read secret from: ${secretPath}`);
+      try {
+        const secretValue = fs.readFileSync(secretPath, 'utf8').trim();
+        process.env[secretName] = secretValue;
+        console.log(`Successfully loaded secret: ${secretName}`);
+      } catch (err) {
+        console.error(`Failed to read secret ${secretName}:`, err.message);
+      }
     }
   } catch (error) {
-    console.error('Error reading secrets:', error);
+    console.error('Error in secret loading block:', error);
   }
 }
 
