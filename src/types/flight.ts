@@ -32,59 +32,19 @@ export interface Layover {
 }
 
 export interface FlightLayover {
-  airport: {
-    code: string;
-    name: string;
-    city: string;
-    country: string;
-    timezone: string;
-    coordinates: {
-      latitude: number;
-      longitude: number;
-    }
-  };
-  arrival: string | Date;
-  departure: string | Date;
+  airport: Airport;
+  arrivalTime: string;
+  departureTime: string;
   duration: number;
 }
 
 export interface Flight {
   id: string;
-  carrier: string;
-  flightNumber: string;
-  origin: {
-    code: string;
-    name: string;
-    city: string;
-    country: string;
-    timezone: string;
-    coordinates: {
-      latitude: number;
-      longitude: number;
-    }
-  };
-  destination: {
-    code: string;
-    name: string;
-    city: string;
-    country: string;
-    timezone: string;
-    coordinates: {
-      latitude: number;
-      longitude: number;
-    }
-  };
-  departureTime: string | Date;
-  arrivalTime: string | Date;
-  duration: number;
-  equipment: string;
-  partnership?: {
-    operatingCarrier: string;
-    operatingFlightNumber: string;
-  };
-  isSegment: boolean;
-  segmentIndex: number;
-  totalSegments: number;
+  origin: Airport;
+  destination: Airport;
+  departureTime: string;
+  arrivalTime: string;
+  timezoneOffset?: number;
   layovers?: FlightLayover[];
 }
 

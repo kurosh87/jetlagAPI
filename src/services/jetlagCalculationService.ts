@@ -99,26 +99,45 @@ export class JetlagCalculationService {
       userPreferences?.chronotype
     );
 
-    const timezoneImpact = Math.abs(timezoneDiff) * directionalityFactor;
-    const durationImpact = this.calculateDurationImpact(flight.duration);
+    // Timezone impact with higher weight for larger differences
+    const timezoneImpact = Math.abs(timezoneDiff) * directionalityFactor * 
+      (Math.abs(timezoneDiff) > 12 ? 1.2 : 1.0);
+    
+    // Enhanced duration impact for ultra-long-haul flights
+    const durationHours = flight.duration / 60;
+    const durationImpact = Math.min(durationHours / 6, 2.5) * 4.0;
+    
     const layoverImpact = flight.layovers ? 
       this.calculateLayoverImpact(flight.layovers) : 0;
-    const timeOfDayImpact = this.calculateTimeOfDayImpact(
-      flight.departureTime,
-      flight.arrivalTime,
-      flight.origin.timezone,
-      flight.destination.timezone
-    );
+      
+    // Enhanced time of day impact for overnight flights
+    const departureHour = flight.departureTime.getHours();
+    const arrivalHour = flight.arrivalTime.getHours();
+    let timeOfDayImpact = 0;
 
-    // Calculate base score (0-10 scale)
+    // Higher impact for overnight flights
+    if ((departureHour >= 20 || departureHour <= 2) && durationHours >= 6) {
+      timeOfDayImpact += 2.5;
+    } else if (departureHour <= 4 || departureHour >= 23) {
+      timeOfDayImpact += 1.5;
+    }
+
+    // Impact for arrivals during sleep hours
+    if (arrivalHour >= 22 || arrivalHour <= 6) {
+      timeOfDayImpact += 1.5;
+    }
+
+    // Weighted average with higher emphasis on duration and timezone for ultra-long-haul
     const baseScore = Math.min(
-      (timezoneImpact + durationImpact + layoverImpact + timeOfDayImpact) / 3,
+      (timezoneImpact * 3.0 + durationImpact * 4.0 + layoverImpact + timeOfDayImpact * 2.0) / 10.0,
       10
     );
 
-    const adaptationDays = Math.ceil(
-      Math.abs(timezoneDiff) / CIRCADIAN_CONSTANTS.AVERAGE_ADJUSTMENT_RATE
-    );
+    const adjustmentRate = directionality === 'eastward' ? 
+      CIRCADIAN_CONSTANTS.PHASE_ADVANCE_LIMIT : 
+      CIRCADIAN_CONSTANTS.PHASE_DELAY_LIMIT;
+    
+    const adaptationDays = Math.ceil(Math.abs(timezoneDiff) / adjustmentRate);
 
     return {
       score: Number(baseScore.toFixed(1)),
